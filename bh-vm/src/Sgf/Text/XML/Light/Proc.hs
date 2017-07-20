@@ -1,12 +1,15 @@
 {-# LANGUAGE RankNTypes             #-}
 
 module Sgf.Text.XML.Light.Proc
-    ( elQN
-    , elN
+    ( qn
+    , elQN
+    --, elN
     , elN2
-    , attrQN
-    , attrN
-    , elAttrQN
+    --, attrQN
+    , attrQN2
+    --, attrN
+    , attrN2
+    --, elAttrQN
     , elAttrQN2
     , queryXMLPath
     , queryXMLPath'
@@ -23,6 +26,10 @@ import Text.XML.Light
 import Sgf.Data.Generics.Schemes
 
 
+-- | Make 'QName' with only 'qName' set.
+qn :: String -> QName
+qn s            = QName {qName = s, qURI = Nothing, qPrefix = Nothing}
+
 elQN :: Monoid r => QName -> Element -> (r, Bool)
 elQN qn x
   | elName x == qn  = (mempty, False)
@@ -34,19 +41,23 @@ elN n x
   | otherwise               = (mempty, True)
 
 elN2 :: String -> Element -> Bool
-elN2 n x
-  | qName (elName x) == n   = True
-  | otherwise               = False
+elN2 n              = (n ==) . qName . elName
 
 attrQN :: Monoid r => QName -> Attr -> (r, Bool)
 attrQN qn x
   | attrKey x == qn = (mempty, False)
   | otherwise       = (mempty, True)
 
+attrQN2 :: QName -> Attr -> Bool
+attrQN2 qn          = (qn ==) . attrKey
+
 attrN :: Monoid r => String -> Attr -> (r, Bool)
 attrN n x
   | qName (attrKey x) == n  = (mempty, False)
   | otherwise               = (mempty, True)
+
+attrN2 :: String -> Attr -> Bool
+attrN2 n            = (n ==) . qName . attrKey
 
 elAttrQN :: Monoid r => QName -> String -> Element -> (r, Bool)
 elAttrQN qn v x
