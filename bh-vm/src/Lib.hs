@@ -7,6 +7,7 @@
 module Lib
   where
 
+import Prelude      hiding (FilePath)
 import Data.List
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -19,6 +20,8 @@ import Control.Monad.Reader
 import Data.Monoid
 import Data.String
 import Control.Arrow
+import Filesystem.Path.CurrentOS
+import qualified Filesystem.Path.CurrentOS as F (empty)
 
 import Sgf.Data.Generics.Aliases
 import Sgf.Data.Generics.Schemes
@@ -53,12 +56,12 @@ data Volume         = Volume
                         , _volPath  :: FilePath
                         , _pool     :: T.Text
                         }
-  deriving (Show)
+  deriving (Show, Typeable, Data)
 defVolume :: Volume
 defVolume           = Volume
                         { _volName  = ""
                         , _volSize  = 0
-                        , _volPath  = ""
+                        , _volPath  = F.empty
                         , _pool     = ""
                         }
 
@@ -82,7 +85,7 @@ data Interface      = Interface
                         { _ip       :: T.Text
                         , _bridge   :: T.Text
                         }
-  deriving (Show)
+  deriving (Show, Typeable, Data)
 defInterface :: Interface
 defInterface        = Interface
                         { _ip       = ""
@@ -110,6 +113,7 @@ ipRQ                = end "" `extRecS` lastQ T.pack `extRecL` attrN "value"
     `extRecL` elN "devices"
     `extRecL` elN "domain"
 
+-- FIXME: vm may have several volumes.
 data Domain         = Domain
                         { _name         :: T.Text
                         , _arch         :: T.Text
@@ -119,7 +123,7 @@ data Domain         = Domain
                         , _interface    :: Interface
                         , _volume       :: Volume
                         }
-  deriving (Show)
+  deriving (Show, Typeable, Data)
 defDomain :: Domain
 defDomain           = Domain
                         { _name         = ""
@@ -168,9 +172,30 @@ cdrom :: GenericQ (Endo Domain)
 cdrom               = setName <$> everythingRecBut mappend cdromRQ
   where setName xs  = Endo (\dom -> dom{_cdrom = xs})
 cdromRQ :: GenericRecQ (Maybe FilePath, Bool)
-cdromRQ             = end Nothing `extRecS` lastQ (Just . id) `extRecL` attrN "file"
+cdromRQ             = end Nothing `extRecS` lastQ (Just . decodeString) `extRecL` attrN "file"
     `extRecL` elN "source"
-    `extRecL` (elN "disk" <*|> elAttrQN (qn "device") "cdrom")
+    --`extRecL` (elN "disk" <*|> elAttrQN (qn "device") "cdrom")
+    `extRecL` elN "disk"
+    `extRecL` elN "devices"
+    `extRecL` elN "domain"
+
+domPath :: GenericQ (Endo Domain)
+{-domPath x           = let v = setName (everythingRecBut mappend domPathRQ x)
+                      in  Endo (\dom -> dom{_volume = appEndo v (_volume dom)})
+  where setName xs  = Endo (\vol -> vol{_volPath = xs})-}
+domPath             = setName <$> everythingRecBut mappend domPathRQ
+  where setName xs  = Endo (\dom -> dom{_volume = (\vol -> vol{_volPath = xs}) (_volume dom)})
+domPathRQ :: GenericRecQ (FilePath, Bool)
+domPathRQ           = end "" `extRecS` lastQ decodeString `extRecL` attrN "dev"
+    `extRecL` elN "source"
+    `extRecL` (elN "disk" <*|> elAttrQN (qn "device") "disk")
+    `extRecL` elN "devices"
+    `extRecL` elN "domain"
+
+domPathRQ2 :: GenericRecQ (String, Bool)
+domPathRQ2           = end "" `extRecS` lastQ id `extRecL` attrN "dev"
+    `extRecL` elN "source"
+    `extRecL` (elN "disk" <*|> elAttrQN (qn "device") "disk")
     `extRecL` elN "devices"
     `extRecL` elN "domain"
 
@@ -187,12 +212,17 @@ interface v         = Endo (\dom -> dom{_interface = appEndo v (_interface dom)}
       <> progDesc "Print server name and aliases and php sendmail_path sender address."
       )-}
 
+
+dom1 :: Domain
+dom1 = Domain {_name = "{{name}}", _arch = "{{arch}}", _memory = 128, _vcpu = 2, _cdrom = Just (decodeString "/var/virt/mini-ubuntu-16.04-i386.iso"), _interface = Interface {_ip = "{{ip}}", _bridge = "{{bridge}}"}, _volume = Volume {_volName = "vm-{{name}}", _volSize = 2345, _volPath = decodeString "/dev/zero", _pool = ""}}
+
 main :: IO ()
 main                = do
     cv <- parseXML <$> T.readFile "../vol.xml"
     cd <- parseXML <$> T.readFile "../dom.xml"
     let vl  = volSize cv <> volName cv
         int = ip cd <> bridge cd
-        dom = name cd <> arch cd <> memory cd <> vcpu cd <> cdrom cd <> volume vl <> interface int
+        dom = name cd <> arch cd <> memory cd <> vcpu cd <> cdrom cd <> volume vl <> interface int <> domPath cd
     print . ($ defDomain) . appEndo $ dom
+    print (decodeString "/dev/zero")
 
