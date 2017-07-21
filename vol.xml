@@ -1,0 +1,4 @@
+<volume type='block'>
+  <name>vm-{{name}}</name>
+  <capacity unit="G">2345</capacity>
+</volume>
