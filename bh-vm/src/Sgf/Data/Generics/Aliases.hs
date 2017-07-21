@@ -5,6 +5,7 @@ module Sgf.Data.Generics.Aliases
     -- * Definition.
     -- $generic
       GenericRecQ (..)
+    , RecB
     , foreverQ
     , extRecQ
     , extRecQ'
@@ -73,6 +74,9 @@ mkRecQ g k          = RQ $ (\x -> (g x, mkRecQ g k)) `extQ` k
 
 
 -- $genericBut
+
+-- | Type of recursive query used with 'everythingRecBut'.
+type RecB r         = ((r, Bool), GenericRecQ (r, Bool))
 
 -- | Loose 'extRecQ' binding: default function just skips non-matching types.
 -- For use with traversal schemes like 'everythingRecBut'.

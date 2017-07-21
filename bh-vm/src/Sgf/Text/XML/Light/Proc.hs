@@ -15,10 +15,12 @@ module Sgf.Text.XML.Light.Proc
     , queryXMLPath'
 
     , onlyText'
+    , onlyText2
     )
   where
 
 import Data.Generics
+import qualified Data.Text as T
 import Control.Applicative
 import Control.Monad.Reader
 import Text.XML.Light
@@ -86,4 +88,7 @@ queryXMLPath'       = queryXMLPath mappend
 
 onlyText' :: [Content] -> String
 onlyText'           = concatMap cdData . onlyText
+
+onlyText2 :: [Content] -> T.Text
+onlyText2           = T.pack . concatMap cdData . onlyText
 

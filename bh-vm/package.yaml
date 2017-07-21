@@ -8,6 +8,7 @@ dependencies: &deps
     - syb
     - mtl
     - system-filepath
+    - attoparsec
 ghc-options: &ghc-opts
     - -Wall
 _exe-ghc-opts: &exe-ghc-opts
