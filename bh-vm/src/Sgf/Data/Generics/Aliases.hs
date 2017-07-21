@@ -7,10 +7,14 @@ module Sgf.Data.Generics.Aliases
     , end
     , end'
     , lastQ
+    , lastQ2
     , extRecQ
+    , mkRecQ
     , extRecQ'
     , extRecL
+    , mkRecL
     , extRecS
+    , mkRecS
     )
   where
 
@@ -48,6 +52,9 @@ end'                = foreverQ (const (mempty, True))
 lastQ :: (b -> r) -> b -> (r, Bool)
 lastQ f x           = (f x, True)
 
+lastQ2 :: (Typeable b, Monoid r) => (b -> r) -> GenericRecQ (r, Bool)
+lastQ2 f             = mkRecS $ \x -> ((f x, True), undefined)
+
 -- | Operator for building recursive query chains.
 --
 --      extRecQ g cont k
@@ -58,6 +65,10 @@ extRecQ :: Typeable b => GenericQ r -> GenericRecQ r -> (b -> r) -> GenericRecQ 
 extRecQ g cont k    = RQ $      (\x -> (g x, extRecQ g cont k))
                         `extQ`  (\x -> (k x, cont))
 
+-- | This version of `extRecQ` allows to choose different continuations (next
+-- queries) depending on value of type 'b'. It's in fact a `mkRecQ`.
+mkRecQ :: Typeable b => GenericQ r -> (b -> (r, GenericRecQ r)) -> GenericRecQ r
+mkRecQ g k          = RQ $ (\x -> (g x, mkRecQ g k)) `extQ` k
 -- | Monoid version of 'extRecQ'.
 extRecQ' :: (Monoid r, Typeable b) => GenericRecQ r -> (b -> r) -> GenericRecQ r
 extRecQ'            = extRecQ (const mempty)
@@ -67,8 +78,14 @@ extRecQ'            = extRecQ (const mempty)
 extRecL :: (Monoid r, Typeable b) => GenericRecQ (r, Bool) -> (b -> (r, Bool)) -> GenericRecQ (r, Bool)
 extRecL             = extRecQ (const (mempty, False))
 
--- | Strict 'extRecQ' binding: default function aborts traversal on
+mkRecL :: (Monoid r, Typeable b) => (b -> ((r, Bool), GenericRecQ (r, Bool))) -> GenericRecQ (r, Bool)
+mkRecL              = mkRecQ (const (mempty, False))
+
+-- | Tight 'extRecQ' binding: default function aborts traversal on
 -- non-matching types. For use with traversal schemes like 'everythingRecBut'.
 extRecS :: (Monoid r, Typeable b) => GenericRecQ (r, Bool) -> (b -> (r, Bool)) -> GenericRecQ (r, Bool)
 extRecS             = extRecQ (const (mempty, True))
+
+mkRecS :: (Monoid r, Typeable b) => (b -> ((r, Bool), GenericRecQ (r, Bool))) -> GenericRecQ (r, Bool)
+mkRecS              = mkRecQ (const (mempty, True))
 

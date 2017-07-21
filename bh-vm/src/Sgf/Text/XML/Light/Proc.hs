@@ -3,9 +3,11 @@
 module Sgf.Text.XML.Light.Proc
     ( elQN
     , elN
+    , elN2
     , attrQN
     , attrN
     , elAttrQN
+    , elAttrQN2
     , queryXMLPath
     , queryXMLPath'
 
@@ -31,6 +33,11 @@ elN n x
   | qName (elName x) == n   = (mempty, False)
   | otherwise               = (mempty, True)
 
+elN2 :: String -> Element -> Bool
+elN2 n x
+  | qName (elName x) == n   = True
+  | otherwise               = False
+
 attrQN :: Monoid r => QName -> Attr -> (r, Bool)
 attrQN qn x
   | attrKey x == qn = (mempty, False)
@@ -45,6 +52,11 @@ elAttrQN :: Monoid r => QName -> String -> Element -> (r, Bool)
 elAttrQN qn v x
   | maybe False (== v) (findAttr qn x)  = (mempty, False)
   | otherwise                           = (mempty, True)
+
+elAttrQN2 :: QName -> String -> Element -> Bool
+elAttrQN2 qn v x
+  | maybe False (== v) (findAttr qn x)  = True
+  | otherwise                           = False
 
 
 -- | Function for modifying @Reader [QName]@ context by adding 'QName' of
