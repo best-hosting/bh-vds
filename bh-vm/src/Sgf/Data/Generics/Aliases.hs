@@ -33,7 +33,7 @@ import Control.Arrow
 
 -- $generic
 
--- | Recursive 'GenericQ' query, which updates itself at each step.
+-- | Recursive 'GenericQ' query, which returns new query at each step.
 newtype GenericRecQ r   = RQ {unRQ :: GenericQ (r, GenericRecQ r)}
 
 instance Functor GenericRecQ where
@@ -49,10 +49,10 @@ foreverQ f          = RQ $ \x -> (f x, foreverQ f)
 --      extRecQ g cont k
 --
 -- will call function @k@ and return @cont@ as the next 'GenericRecQ' query,
--- if argument type matches. Otherwise it will call default query @g@.  Its
--- versions with predefined default query may be used to build chains of
--- queries, which should be called one after another (see 'extRecL' and
--- 'extRecS').
+-- if argument type matches. Otherwise it will call default query @g@ and
+-- /rebuild/ itself as the next query.  Its versions with predefined default
+-- query may be used to build chains of queries, which should be called one
+-- after another (see 'extRecL' and 'extRecS').
 extRecQ :: Typeable b => GenericQ r -> GenericRecQ r -> (b -> r) -> GenericRecQ r
 extRecQ g cont k    = RQ $      (\x -> (g x, extRecQ g cont k))
                         `extQ`  (\x -> (k x, cont))
@@ -66,9 +66,10 @@ extRecQ'            = extRecQ (const mempty)
 --      mkRecQ def k
 --
 -- will call function @k@ and expects it to return next 'GenericRecQ' query as
--- well, if argument type matches. Otherwise, it will call default query @g@.
--- It may be used, when function @g@ needs to decide, which next 'GenericRecQ'
--- query to use depending on its argument.
+-- well, if argument type matches. Otherwise, it will call default query @g@
+-- and /rebuild/ itself as the next query.  It may be used, when function @g@
+-- needs to decide, which next 'GenericRecQ' query to use, depending on its
+-- argument.
 mkRecQ :: Typeable b => GenericQ r -> (b -> (r, GenericRecQ r)) -> GenericRecQ r
 mkRecQ g k          = RQ $ (\x -> (g x, mkRecQ g k)) `extQ` k
 
@@ -84,8 +85,8 @@ extRecL :: (Monoid r, Typeable b) =>
            GenericRecQ (r, Bool) -> (b -> (r, Bool)) -> GenericRecQ (r, Bool)
 extRecL             = extRecQ (const (mempty, False))
 
--- | Tight (strict) 'extRecQ' binding: default function aborts traversal on
--- non-matching types. For use with traversal schemes like 'everythingRecBut'.
+-- | Tight 'extRecQ' binding: default function stops traversal on non-matching
+-- types. For use with traversal schemes like 'everythingRecBut'.
 extRecS :: (Monoid r, Typeable b) =>
            GenericRecQ (r, Bool) -> (b -> (r, Bool)) -> GenericRecQ (r, Bool)
 extRecS             = extRecQ (const (mempty, True))
@@ -120,10 +121,10 @@ end d               = foreverQ (const (d, True))
 end' :: Monoid r => GenericRecQ (r, Bool)
 end'                = foreverQ (const (mempty, True))
 
--- | Lift predicate into identity query determining whether to traverse deeper
--- constructors tree. Note, that 'everythingBut' schemes expect 'False' for
--- /continuing/ traversal and 'True' to /stop/ it (thus, predicate value is
--- reversed).
+-- | Lift predicate into identity query determining whether to traverse
+-- constructors tree deeper.  Note, that 'everythingBut' schemes expect
+-- 'False' for /continuing/ traversal and 'True' to /stop/ it (thus, predicate
+-- value is reversed).
 pureQ :: Monoid r => (a -> Bool) -> a -> (r, Bool)
 pureQ p x           = (mempty, not (p x))
 
