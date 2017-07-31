@@ -3,19 +3,14 @@
 module Sgf.Text.XML.Light.Proc
     ( qn
     , elQN
-    --, elN
-    , elN2
-    --, attrQN
-    , attrQN2
-    --, attrN
-    , attrN2
-    --, elAttrQN
-    , elAttrQN2
+    , elN
+    , attrQN
+    , attrN
+    , elAttrQN
     , queryXMLPath
     , queryXMLPath'
 
-    , onlyText'
-    , onlyText2
+    , onlyTextT
     )
   where
 
@@ -37,37 +32,17 @@ elQN qn x
   | elName x == qn  = (mempty, False)
   | otherwise       = (mempty, True)
 
-elN :: Monoid r => String -> Element -> (r, Bool)
-elN n x
-  | qName (elName x) == n   = (mempty, False)
-  | otherwise               = (mempty, True)
+elN :: String -> Element -> Bool
+elN n               = (n ==) . qName . elName
 
-elN2 :: String -> Element -> Bool
-elN2 n              = (n ==) . qName . elName
+attrQN :: QName -> Attr -> Bool
+attrQN qn           = (qn ==) . attrKey
 
-attrQN :: Monoid r => QName -> Attr -> (r, Bool)
-attrQN qn x
-  | attrKey x == qn = (mempty, False)
-  | otherwise       = (mempty, True)
+attrN :: String -> Attr -> Bool
+attrN n             = (n ==) . qName . attrKey
 
-attrQN2 :: QName -> Attr -> Bool
-attrQN2 qn          = (qn ==) . attrKey
-
-attrN :: Monoid r => String -> Attr -> (r, Bool)
-attrN n x
-  | qName (attrKey x) == n  = (mempty, False)
-  | otherwise               = (mempty, True)
-
-attrN2 :: String -> Attr -> Bool
-attrN2 n            = (n ==) . qName . attrKey
-
-elAttrQN :: Monoid r => QName -> String -> Element -> (r, Bool)
+elAttrQN :: QName -> String -> Element -> Bool
 elAttrQN qn v x
-  | maybe False (== v) (findAttr qn x)  = (mempty, False)
-  | otherwise                           = (mempty, True)
-
-elAttrQN2 :: QName -> String -> Element -> Bool
-elAttrQN2 qn v x
   | maybe False (== v) (findAttr qn x)  = True
   | otherwise                           = False
 
@@ -86,9 +61,6 @@ queryXMLPath' :: Monoid r => GenericQ ([QName] -> r) -> GenericQ r
 queryXMLPath'       = queryXMLPath mappend
 
 
-onlyText' :: [Content] -> String
-onlyText'           = concatMap cdData . onlyText
-
-onlyText2 :: [Content] -> T.Text
-onlyText2           = T.pack . concatMap cdData . onlyText
+onlyTextT :: [Content] -> T.Text
+onlyTextT           = T.pack . concatMap cdData . onlyText
 
