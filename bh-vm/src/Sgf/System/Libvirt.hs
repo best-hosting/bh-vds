@@ -27,6 +27,7 @@ import Data.Monoid
 import Data.Generics
 import Data.Attoparsec.Text
 import qualified Data.Text as T
+import Control.Applicative
 import Text.XML.Light
 import qualified Text.XML.Light.Lexer as X
 import qualified Filesystem.Path.CurrentOS as F
@@ -131,10 +132,10 @@ newtype Arch        = Arch (Last T.Text)
 defArch :: Arch
 defArch             = Arch (Last (Just "x86_64"))
 
--- FIXME: Proper parser for arch.
 -- | Parser for 'Arch'.
 parseArch :: T.Text -> Either String Arch
-parseArch           = Right . Arch . Last . Just
+parseArch           = parseOnly $ Arch . Last . Just
+                        <$> (string "x86_64" <|> string "i686")
 
 -- | Type for libvirt @vcpu@ definition inside domain.
 newtype VCpu        = VCpu {_vcpu :: Sum Integer}
