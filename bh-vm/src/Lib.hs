@@ -51,12 +51,14 @@ main                = do
     let dom = readDomainXml cd
         --d = ($ dom) . appEndo $ domVolume vol
     print dom
-    let p  = everything (<|>) (Nothing `mkQ` (Just . _volPath)) dom
-        vf = "../" </> basename (fromJust p) <.> "xml"
-    cv <- T.readFile (encodeString vf)
-    let vol = readVolumeXml cv
-    print vol
-    let dom2 = modify (<> vol) dom
+    vs <- forM (_volume dom) $ \v -> do
+      let --p  = everything (<|>) (Nothing `mkQ` (Just . _volPath)) dom
+          vf = "../" </> basename (_volPath v) <.> "xml"
+      cv <- T.readFile (encodeString vf)
+      let vol = readVolumeXml cv
+      print vol
+      return (v <> vol)
+    let dom2 = set vs dom
     print dom2
     {-cv <- T.readFile "../vol.xml"
     let vol2 = readVolumeXml cv

@@ -14,7 +14,6 @@ module Sgf.System.Libvirt
     , Interface (..)
     , Domain (..)
     , domainXml
-    , domVolume
     , readDomainXml
     )
   where
@@ -145,7 +144,6 @@ newtype IP          = IP (Last T.Text)
 parseIP :: T.Text -> Either String IP
 parseIP             = Right . IP . Last . Just
 
--- FIXME: vm may have several volumes.
 -- | Type for libvirt @domain@.
 data Domain         = Domain
                         { _name     :: Name
@@ -153,7 +151,7 @@ data Domain         = Domain
                         , _memory   :: Size
                         , _domVCpu  :: VCpu
                         , _cdrom    :: Maybe F.FilePath
-                        , _volume   :: Volume
+                        , _volume   :: [Volume]
                         , _bridge   :: Interface
                         , _domIp    :: IP
                         }
@@ -207,11 +205,15 @@ cdromXml        = endQ (Endo . set . Just . F.decodeString)
 
 -- FIXME: F.decodeString "/a/b/c" `mappend` mempty == FilePath "/a/b/c/" .
 -- | Generic query for '_volPath' in 'Volume' inside 'Domain' working on a
--- /partial/ xml tree.
+-- /partial/ xml tree. Each found '_volPath' is decoded as /separate/
+-- 'Volume'.
 domDiskXml :: GenericRecQ (Endo Domain, Bool)
-domDiskXml      = endQ (\x -> Endo $ gmapT (set (F.decodeString x)))
+domDiskXml      = endQ (\x -> Endo $ modify (volDisk x :))
                     `extRecL` pureQ (attrN "dev")
                     `extRecL` pureQ (elN "source")
+  where
+    volDisk :: String -> Volume
+    volDisk x   = set (F.decodeString x) mempty
 
 -- | Generic query for 'Interface' inside 'Domain' working on a /partial/ xml
 -- tree.
@@ -256,9 +258,6 @@ domainXml           = mkRecL dom `extRecL` pureQ (elN "domain")
       | elN "vcpu"    x = next vcpuXml
       | elN "devices" x = next (mkRecL domDevices)
       | otherwise       = stop mempty
-
-domVolume :: Endo Volume -> Endo Domain
-domVolume v         = Endo $ \dom -> dom{_volume = appEndo v (_volume dom)}
 
 -- | Parse 'Domain' from an 'XmlSource' containing libvirt @domain@ xml.
 readDomainXml :: X.XmlSource s => s -> Domain
