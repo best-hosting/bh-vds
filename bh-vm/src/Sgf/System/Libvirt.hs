@@ -80,27 +80,18 @@ instance Monoid Volume where
 sumNames :: Name -> Name -> Name
 sumNames (Name (Last mx)) (Name (Last my)) = Name (Last (mx <> my))
 
-fromParser :: (Typeable b, Data a) => Either e b -> Endo a
-fromParser          = either mempty (Endo . set)
-
--- FIXME: 'volNameXml' and 'volSizeXml' are identical, except for parser. Join
--- them? The same for 'nameXml', 'memoryXml', 'vcpuXml'.
--- | Generic query for '_volName' working on a /partial/ xml tree.
-volNameXml :: GenericRecQ (Endo Volume, Bool)
-volNameXml      = endQ $ fromParser . parseName . onlyTextT
-
--- | Generic query for '_volSize' working on a /partial/ xml tree.
-volSizeXml :: GenericRecQ (Endo Volume, Bool)
-volSizeXml      = endQ $ fromParser . parseSize . onlyTextT
+endParserQ :: (Typeable s, Typeable b, Data a) =>
+              (s -> Either e b) -> GenericRecQ (Endo a, Bool)
+endParserQ p        = endQ $ either mempty (Endo . set) . p
 
 -- | Generic query for 'Volume' working on a libvirt storage @volume@ xml.
 volumeXml :: GenericRecQ (Endo Volume, Bool)
-volumeXml       = mkRecL vol `extRecL` pureQ (elN "volume")
+volumeXml           = mkRecL vol `extRecL` pureQ (elN "volume")
   where
     vol :: Element -> RecB (Endo Volume)
     vol x
-      | elN "capacity" x    = next volSizeXml
-      | elN "name"     x    = next volNameXml
+      | elN "capacity" x    = next $ endParserQ (parseSize . onlyTextT)
+      | elN "name"     x    = next $ endParserQ (parseName . onlyTextT)
       | otherwise           = stop mempty
 
 -- | Parse 'Volume' from an 'XmlSource' containing libvirt @volume@ xml.
@@ -202,51 +193,36 @@ instance Monoid Domain where
                         , _domIp    = _domIp x      <> _domIp y
                         }
 
--- | Generic query for '_name' working on a /partial/ xml tree.
-nameXml :: GenericRecQ (Endo Domain, Bool)
-nameXml         = endQ (fromParser . parseName . onlyTextT)
-
--- | Generic query for '_arch' working on a /partial/ xml tree.
+---- | Generic query for '_arch' working on a /partial/ xml tree.
 archXml :: GenericRecQ (Endo Domain, Bool)
-archXml         = endQ (fromParser . parseArch . T.pack)
+--archXml             = endQ (fromParser . parseArch . T.pack)
+archXml             = endParserQ (parseArch . T.pack)
                         `extRecL` pureQ (attrN "arch")
                         `extRecL` pureQ (elN "type")
 
--- | Generic query for '_memory' working on a /partial/ xml tree.
-memoryXml :: GenericRecQ (Endo Domain, Bool)
-memoryXml       = endQ (fromParser . parseSize . onlyTextT)
+-- | Generic query for @file@ attribute in @source@ element.
+sourceFileXml :: Monoid a => (String -> a) -> GenericRecQ (a, Bool)
+sourceFileXml p     = endQ p
+                        `extRecL` pureQ (attrN "file")
+                        `extRecL` pureQ (elN "source")
 
--- | Generic query for '_vcpu' working on a /partial/ xml tree.
-vcpuXml :: GenericRecQ (Endo Domain, Bool)
-vcpuXml         = endQ (fromParser . parseVCpu . onlyTextT)
-
--- | Generic query for '_cdrom' working on a /partial/ xml tree.
-cdromXml :: GenericRecQ (Endo Domain, Bool)
-cdromXml        = endQ (Endo . set . Just . F.decodeString)
-                    `extRecL` pureQ (attrN "file")
-                    `extRecL` pureQ (elN "source")
+-- | Generic query for @dev@ attribute in @source@ element.
+sourceDevXml :: Monoid a => (String -> a) -> GenericRecQ (a, Bool)
+sourceDevXml p      = endQ p
+                        `extRecL` pureQ (attrN "dev")
+                        `extRecL` pureQ (elN "source")
 
 -- FIXME: F.decodeString "/a/b/c" `mappend` mempty == FilePath "/a/b/c/" .
--- | Generic query for '_volPath' in 'Volume' inside 'Domain' working on a
--- /partial/ xml tree. Each found '_volPath' is decoded as /separate/
--- 'Volume'.
-domDiskXml :: GenericRecQ (Endo Domain, Bool)
-domDiskXml      = endQ (\x -> Endo $ modify (volDisk x :))
-                    `extRecL` pureQ (attrN "dev")
-                    `extRecL` pureQ (elN "source")
-  where
-    volDisk :: String -> Volume
-    volDisk x   = set (F.decodeString x) mempty
 
 -- | Generic query for 'Interface' inside 'Domain' working on a /partial/ xml
 -- tree.
 bridgeXml :: GenericRecQ (Endo Domain, Bool)
-bridgeXml       = endQ (fromParser . parseInterface . T.pack)
-                    `extRecL` pureQ (attrN "bridge")
+bridgeXml           = endParserQ (parseInterface . T.pack)
+                        `extRecL` pureQ (attrN "bridge")
 
 -- | Generic query for 'IP' inside 'Domain' working on a /partial/ xml tree.
 domIpXml :: GenericRecQ (Endo Domain, Bool)
-domIpXml        = endQ (fromParser . parseIP . T.pack)
+domIpXml            = endParserQ (parseIP . T.pack)
     `extRecL` pureQ (attrN "value")
     `extRecL` pureQ (elN "parameter" <&&> elAttrQN (qn "name") "IP")
 
@@ -259,15 +235,19 @@ domInterfaces x
   | otherwise           = stop mempty
 
 -- | Generic query for values in 'Domain' initialized from the @devices@ block
--- in libvirt domain xml tree (works on /partial/ xml tree).
+-- in libvirt domain xml tree (works on /partial/ xml tree). Note, that each
+-- found '_volPath' is decoded as /separate/ 'Volume'.
 domDevices :: Element -> ((Endo Domain, Bool), GenericRecQ (Endo Domain, Bool))
 domDevices x
   | elN "interface" x   = next (mkRecL domInterfaces)
-  | elN "disk" x && elAttrQN (qn "device") "cdrom" x
-                        = next cdromXml
-  | elN "disk" x && elAttrQN (qn "device") "disk" x
-                        = next domDiskXml
+  | elN "disk" x && elAttrQN (qn "device") "cdrom" x = next $
+                          sourceFileXml (Endo . set . Just . F.decodeString)
+  | elN "disk" x && elAttrQN (qn "device") "disk" x  = next $
+                          sourceDevXml (\y -> Endo $ modify (volDisk y :))
   | otherwise           = stop mempty
+  where
+    volDisk :: String -> Volume
+    volDisk t       = set (F.decodeString t) mempty
 
 -- | Generic query for 'Domain' working on a libvirt @domain@ xml.
 domainXml :: GenericRecQ (Endo Domain, Bool)
@@ -275,10 +255,10 @@ domainXml           = mkRecL dom `extRecL` pureQ (elN "domain")
   where
     dom :: Element -> RecB (Endo Domain)
     dom x
-      | elN "name"    x = next nameXml
+      | elN "name"    x = next $ endParserQ (parseName . onlyTextT)
       | elN "os"      x = next archXml
-      | elN "memory"  x = next memoryXml
-      | elN "vcpu"    x = next vcpuXml
+      | elN "memory"  x = next $ endParserQ (parseSize . onlyTextT)
+      | elN "vcpu"    x = next $ endParserQ (parseVCpu . onlyTextT)
       | elN "devices" x = next (mkRecL domDevices)
       | otherwise       = stop mempty
 
