@@ -7,16 +7,12 @@ module Sgf.System.Libvirt
     , Size (..)
     , Pool (..)
     , Volume (..)
-    , defVolume
     , volumeXml
     , readVolumeXml
 
     , IP (..)
-    , defIP
     , Interface (..)
-    , defInterface
     , Domain (..)
-    , defDomain
     , domainXml
     , domVolume
     , readDomainXml
@@ -42,9 +38,6 @@ import Sgf.Text.XML.Light.Proc
 -- | Type for names.
 newtype Name        = Name (Last T.Text)
   deriving (Show, Typeable, Data, Eq, Monoid)
--- | Default 'Name'.
-defName :: Name
-defName             = Name mempty
 
 -- | Parser for 'Name'.
 parseName :: T.Text -> Either String Name
@@ -53,9 +46,6 @@ parseName           = Right . Name . Last . Just
 -- | Type for sizes.
 newtype Size        = Size (Sum Integer)
   deriving (Show, Typeable, Data, Eq, Ord, Num, Monoid)
--- | Default 'Size'.
-defSize :: Size
-defSize             = Size mempty
 
 -- | Parser for 'Size'.
 parseSize :: T.Text -> Either String Size
@@ -64,9 +54,6 @@ parseSize           = parseOnly (Size . Sum <$> decimal)
 -- | Type for libvirt storage pool.
 newtype Pool        = Pool {_poolName :: Name}
   deriving (Show, Typeable, Data, Eq, Monoid)
--- | Default 'Pool'.
-defPool :: Pool
-defPool             = Pool {_poolName = defName}
 
 -- | Type for libvirt storage volume.
 data Volume         = Volume
@@ -76,17 +63,14 @@ data Volume         = Volume
                         , _pool     :: Pool         -- ^ Volume pool.
                         }
   deriving (Show, Typeable, Data, Eq)
--- | Default 'Volume'.
-defVolume :: Volume
-defVolume           = Volume
-                        { _volName  = defName
-                        , _volSize  = defSize
-                        , _volPath  = F.empty
-                        , _pool     = defPool
-                        }
 
 instance Monoid Volume where
-    mempty          = defVolume
+    mempty          = Volume
+                        { _volName  = mempty
+                        , _volSize  = mempty
+                        , _volPath  = F.empty
+                        , _pool     = mempty
+                        }
     x `mappend` y   = Volume
                         { _volName  = _volName x <> _volName y
                         , _volSize  = _volSize x <> _volSize y
@@ -100,6 +84,8 @@ sumNames (Name (Last mx)) (Name (Last my)) = Name (Last (mx <> my))
 fromParser :: (Typeable b, Data a) => Either e b -> Endo a
 fromParser          = either mempty (Endo . set)
 
+-- FIXME: 'volNameXml' and 'volSizeXml' are identical, except for parser. Join
+-- them? The same for 'nameXml', 'memoryXml', 'vcpuXml'.
 -- | Generic query for '_volName' working on a /partial/ xml tree.
 volNameXml :: GenericRecQ (Endo Volume, Bool)
 volNameXml      = endQ $ fromParser . parseName . onlyTextT
@@ -120,7 +106,7 @@ volumeXml       = mkRecL vol `extRecL` pureQ (elN "volume")
 
 -- | Parse 'Volume' from an 'XmlSource' containing libvirt @volume@ xml.
 readVolumeXml :: X.XmlSource s => s -> Volume
-readVolumeXml       = ($ defVolume) . appEndo
+readVolumeXml       = ($ mempty) . appEndo
                         . everythingRecBut mappend volumeXml
                         . parseXML
 
@@ -128,9 +114,6 @@ readVolumeXml       = ($ defVolume) . appEndo
 -- | Type for architecture.
 newtype Arch        = Arch (Last T.Text)
   deriving (Show, Typeable, Data, Eq, Monoid)
--- | Default 'Arch'.
-defArch :: Arch
-defArch             = Arch (Last (Just "x86_64"))
 
 -- | Parser for 'Arch'.
 parseArch :: T.Text -> Either String Arch
@@ -140,9 +123,6 @@ parseArch           = parseOnly $ Arch . Last . Just
 -- | Type for libvirt @vcpu@ definition inside domain.
 newtype VCpu        = VCpu {_vcpu :: Sum Integer}
   deriving (Show, Typeable, Data, Eq, Monoid)
--- | Default 'VCpu'.
-defVCpu :: VCpu
-defVCpu             = VCpu (Sum 1)
 
 -- | Parser for 'VCpu'.
 parseVCpu :: T.Text -> Either String VCpu
@@ -151,11 +131,6 @@ parseVCpu           = parseOnly (VCpu . Sum <$> decimal)
 -- | Type for libvirt network @interface@ definition inside domain.
 newtype Interface   = Interface {_intName :: Name}
   deriving (Show, Typeable, Data, Eq, Monoid)
--- | Default 'Interface'.
-defInterface :: Interface
-defInterface        = Interface $ case parseName "lo" of
-                        Right x -> x
-                        Left  _ -> error "Unexpected error in 'defInterface'."
 
 -- | Parser for 'Interface'.
 parseInterface :: T.Text -> Either String Interface
@@ -164,9 +139,6 @@ parseInterface      = (Interface <$>) . parseName
 -- | Type for IP address.
 newtype IP          = IP (Last T.Text)
   deriving (Show, Typeable, Data, Eq, Monoid)
--- | Default for 'IP'.
-defIP :: IP
-defIP               = IP (Last (Just "0.0.0.0"))
 
 -- FIXME: Proper IP parsing.
 -- | Parser for 'IP'.
@@ -186,21 +158,18 @@ data Domain         = Domain
                         , _domIp    :: IP
                         }
   deriving (Show, Typeable, Data, Eq)
--- | Default 'Domain'.
-defDomain :: Domain
-defDomain           = Domain
-                        { _name     = defName
-                        , _arch     = defArch
-                        , _memory   = defSize
-                        , _domVCpu  = defVCpu
-                        , _cdrom    = Nothing
-                        , _volume   = defVolume
-                        , _bridge   = defInterface
-                        , _domIp    = defIP
-                        }
 
 instance Monoid Domain where
-    mempty          = defDomain
+    mempty          = Domain
+                        { _name     = mempty
+                        , _arch     = mempty
+                        , _memory   = mempty
+                        , _domVCpu  = mempty
+                        , _cdrom    = Nothing
+                        , _volume   = mempty
+                        , _bridge   = mempty
+                        , _domIp    = mempty
+                        }
     x `mappend` y   = Domain
                         { _name     = _name x       <> _name y
                         , _arch     = _arch x       <> _arch y
@@ -236,6 +205,7 @@ cdromXml        = endQ (Endo . set . Just . F.decodeString)
                     `extRecL` pureQ (attrN "file")
                     `extRecL` pureQ (elN "source")
 
+-- FIXME: F.decodeString "/a/b/c" `mappend` mempty == FilePath "/a/b/c/" .
 -- | Generic query for '_volPath' in 'Volume' inside 'Domain' working on a
 -- /partial/ xml tree.
 domDiskXml :: GenericRecQ (Endo Domain, Bool)
@@ -292,7 +262,7 @@ domVolume v         = Endo $ \dom -> dom{_volume = appEndo v (_volume dom)}
 
 -- | Parse 'Domain' from an 'XmlSource' containing libvirt @domain@ xml.
 readDomainXml :: X.XmlSource s => s -> Domain
-readDomainXml       = ($ defDomain) . appEndo
+readDomainXml       = ($ mempty) . appEndo
                         . everythingRecBut mappend domainXml
                         . parseXML
 
