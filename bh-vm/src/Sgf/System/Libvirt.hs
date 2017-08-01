@@ -136,13 +136,36 @@ parseInterface :: T.Text -> Either String Interface
 parseInterface      = (Interface <$>) . parseName
 
 -- | Type for IP address.
-newtype IP          = IP (Last T.Text)
-  deriving (Show, Typeable, Data, Eq, Monoid)
+data IP             = IP    { _octet1 :: Sum Int
+                            , _octet2 :: Sum Int
+                            , _octet3 :: Sum Int
+                            , _octet4 :: Sum Int
+                            }
+  deriving (Show, Typeable, Data, Eq)
 
--- FIXME: Proper IP parsing.
+instance Monoid IP where
+    mempty          = IP mempty mempty mempty mempty
+    x `mappend` y   = IP    { _octet1 = _octet1 x `mappend` _octet1 y
+                            , _octet2 = _octet2 x `mappend` _octet2 y
+                            , _octet3 = _octet3 x `mappend` _octet3 y
+                            , _octet4 = _octet4 x `mappend` _octet4 y
+                            }
+
 -- | Parser for 'IP'.
 parseIP :: T.Text -> Either String IP
-parseIP             = Right . IP . Last . Just
+parseIP             = parseOnly $
+                        IP <$> octet <*> octet <*> octet <*> octet
+  where
+    octet :: Parser (Sum Int)
+    octet           = do
+                        x <- decimal <* (string "." <|> endOfInput *> pure "")
+                        case x of
+                          _
+                            | x > 255   -> error $
+                                "Octet " ++ show x ++ " is too great."
+                            | x < 0     -> error $
+                                "Impossible happens: negative octet " ++ show x
+                            | otherwise -> pure (Sum x)
 
 -- | Type for libvirt @domain@.
 data Domain         = Domain
