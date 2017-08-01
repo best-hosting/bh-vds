@@ -54,11 +54,13 @@ parseSize           = parseOnly (Size . Sum <$> decimal)
 newtype Pool        = Pool {_poolName :: Name}
   deriving (Show, Typeable, Data, Eq, Monoid)
 
--- | Type for libvirt storage volume.
+-- | Type for libvirt storage volume. Note, the type of '_volPath': 'FilePath'
+-- 'Monoid' instance is wrong (it does not satisfy 'Monoid' laws), thus i need
+-- a wrapper to fix it.
 data Volume         = Volume
                         { _volName  :: Name         -- ^ Volume @name@.
                         , _volSize  :: Size         -- ^ Volume @capacity@.
-                        , _volPath  :: F.FilePath   -- ^ Volume @target -> path@.
+                        , _volPath  :: Alt Maybe F.FilePath -- ^ Volume @target -> path@.
                         , _pool     :: Pool         -- ^ Volume pool.
                         }
   deriving (Show, Typeable, Data, Eq)
@@ -67,7 +69,7 @@ instance Monoid Volume where
     mempty          = Volume
                         { _volName  = mempty
                         , _volSize  = mempty
-                        , _volPath  = F.empty
+                        , _volPath  = mempty
                         , _pool     = mempty
                         }
     x `mappend` y   = Volume
@@ -76,13 +78,6 @@ instance Monoid Volume where
                         , _volPath  = _volPath x <> _volPath y
                         , _pool     = _pool x    <> _pool y
                         }
-
-sumNames :: Name -> Name -> Name
-sumNames (Name (Last mx)) (Name (Last my)) = Name (Last (mx <> my))
-
-endParserQ :: (Typeable s, Typeable b, Data a) =>
-              (s -> Either e b) -> GenericRecQ (Endo a, Bool)
-endParserQ p        = endQ $ either mempty (Endo . set) . p
 
 -- | Generic query for 'Volume' working on a libvirt storage @volume@ xml.
 volumeXml :: GenericRecQ (Endo Volume, Bool)
@@ -158,13 +153,15 @@ parseIP             = parseOnly $
                                 "Impossible happens: negative octet " ++ show x
                             | otherwise -> pure (Sum x)
 
--- | Type for libvirt @domain@.
+-- | Type for libvirt @domain@. Note, the type of '_cdrom': 'FilePath'
+-- 'Monoid' instance is wrong (it does not satisfy 'Monoid' laws), thus i need
+-- a wrapper to fix it.
 data Domain         = Domain
                         { _name     :: Name
                         , _arch     :: Arch
                         , _memory   :: Size
                         , _domVCpu  :: VCpu
-                        , _cdrom    :: Maybe F.FilePath
+                        , _cdrom    :: Alt Maybe F.FilePath
                         , _volume   :: [Volume]
                         , _bridge   :: Interface
                         , _domIp    :: IP
@@ -177,7 +174,7 @@ instance Monoid Domain where
                         , _arch     = mempty
                         , _memory   = mempty
                         , _domVCpu  = mempty
-                        , _cdrom    = Nothing
+                        , _cdrom    = Alt Nothing
                         , _volume   = mempty
                         , _bridge   = mempty
                         , _domIp    = mempty
@@ -212,8 +209,6 @@ sourceDevXml p      = endQ p
                         `extRecL` pureQ (attrN "dev")
                         `extRecL` pureQ (elN "source")
 
--- FIXME: F.decodeString "/a/b/c" `mappend` mempty == FilePath "/a/b/c/" .
-
 -- | Generic query for 'Interface' inside 'Domain' working on a /partial/ xml
 -- tree.
 bridgeXml :: GenericRecQ (Endo Domain, Bool)
@@ -241,13 +236,13 @@ domDevices :: Element -> ((Endo Domain, Bool), GenericRecQ (Endo Domain, Bool))
 domDevices x
   | elN "interface" x   = next (mkRecL domInterfaces)
   | elN "disk" x && elAttrQN (qn "device") "cdrom" x = next $
-                          sourceFileXml (Endo . set . Just . F.decodeString)
+                          sourceFileXml (Endo . set . filePath)
   | elN "disk" x && elAttrQN (qn "device") "disk" x  = next $
                           sourceDevXml (\y -> Endo $ modify (volDisk y :))
   | otherwise           = stop mempty
   where
     volDisk :: String -> Volume
-    volDisk t       = set (F.decodeString t) mempty
+    volDisk t       = set (filePath t ) mempty
 
 -- | Generic query for 'Domain' working on a libvirt @domain@ xml.
 domainXml :: GenericRecQ (Endo Domain, Bool)
@@ -267,4 +262,20 @@ readDomainXml :: X.XmlSource s => s -> Domain
 readDomainXml       = ($ mempty) . appEndo
                         . everythingRecBut mappend domainXml
                         . parseXML
+
+-- $utils
+
+-- | Use a function (usually, result of parsing something with 'parseOnly') to
+-- construct a final 'endQ' generic query. Note, that if i'll take 'Parser b'
+-- here instead of 's -> Either e b', i can't make 'endParserQ' to work on any
+-- input, like now. Also with current type i may use 'endOfInput' in specific
+-- type parsers, because they're evaluated till the end with 'parseOnly' in
+-- their specific functions.
+endParserQ :: (Typeable s, Typeable b, Data a) =>
+              (s -> Either e b) -> GenericRecQ (Endo a, Bool)
+endParserQ p        = endQ $ either mempty (Endo . set) . p
+
+-- | Construct a proper 'Monoid' from a 'FilePath'.
+filePath :: String -> Alt Maybe F.FilePath
+filePath            = Alt . Just . F.decodeString
 
