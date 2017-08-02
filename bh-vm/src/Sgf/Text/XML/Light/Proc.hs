@@ -11,6 +11,7 @@ module Sgf.Text.XML.Light.Proc
     , queryXMLPath'
 
     , onlyTextT
+    , onlyText'
     )
   where
 
@@ -62,5 +63,8 @@ queryXMLPath'       = queryXMLPath mappend
 
 
 onlyTextT :: [Content] -> T.Text
-onlyTextT           = T.pack . concatMap cdData . onlyText
+onlyTextT           = T.pack . onlyText'
+
+onlyText' :: [Content] -> String
+onlyText'           = concatMap cdData . onlyText
 

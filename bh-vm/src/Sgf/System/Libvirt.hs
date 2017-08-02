@@ -84,17 +84,20 @@ instance Monoid Volume where
                         , _pool     = _pool x    <> _pool y
                         }
 
+volDiskXml :: GenericRecQ (Endo Volume, Bool)
+volDiskXml          = endParserQ (Right . filePath . onlyText')
+                        `extRecL` pureQ (elN "path")
+
 -- | Generic query for 'Volume' working on a libvirt storage @volume@ xml.
 volumeXml :: GenericRecQ (Endo Volume, Bool)
 volumeXml           = mkRecL vol `extRecL` pureQ (elN "volume")
   where
     vol :: Element -> RecB (Endo Volume)
     vol x
-      | elN "capacity" x    = next $ endParserQ (parseSize . onlyTextT)
-      | elN "name"     x    = next $ endParserQ (parseName . onlyTextT)
+      | elN "capacity"  x   = next $ endParserQ (parseSize . onlyTextT)
+      | elN "name"      x   = next $ endParserQ (parseName . onlyTextT)
+      | elN "target"    x   = next $ volDiskXml
       | otherwise           = stop mempty
-
--- FIXME: Initialize '_volPath' in 'volumeXml'.
 
 -- | Parse 'Volume' from an 'XmlSource' containing libvirt @volume@ xml.
 readVolumeXml :: X.XmlSource s => s -> Volume
@@ -249,7 +252,7 @@ domDevices x
   | otherwise           = stop mempty
   where
     volDisk :: String -> Volume
-    volDisk t       = set (filePath t ) mempty
+    volDisk t       = set (filePath t) mempty
 
 -- | Generic query for 'Domain' working on a libvirt @domain@ xml.
 domainXml :: GenericRecQ (Endo Domain, Bool)
@@ -284,7 +287,13 @@ initDomain f        = modifyM initVols . readDomainXml
     initVols        = mapM $ \v -> do
                         let p = fromJust . getAlt . _volPath $ v
                         vx <- f p
-                        return (v <> readVolumeXml vx)
+                        let v'  = readVolumeXml vx
+                            vv' =  v <> v'
+                        if vv' /= v' <> v
+                          then error $ "Volume info does not match to domain.\n"
+                                ++ "Read volume: " ++ show v' ++ "\n"
+                                ++ "Domain's volume: " ++ show v
+                          else return vv'
 
 -- $utils
 
