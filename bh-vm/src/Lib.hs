@@ -44,6 +44,9 @@ class FromXML a where
       <> progDesc "Print server name and aliases and php sendmail_path sender address."
       )-}
 
+checkIp :: IP -> Domain -> Bool
+checkIp x           = (x ==) . _domIp
+
 -- T.readFile "../volume.xml" >>= return . (\x -> gmapT (id `extT` volNameT x `extT` volSizeT x) defVolume) . parseXML
 main :: IO ()
 main                = do
@@ -60,6 +63,8 @@ main                = do
       return (v <> vol)
     let dom2 = set vs dom
     print dom2
+    d3 <- initDomain (\p -> T.readFile (encodeString ("../" </> basename p <.> "xml"))) cd
+    print (d3 == dom2)
     {-cv <- T.readFile "../vol.xml"
     let vol2 = readVolumeXml cv
     print vol2-}

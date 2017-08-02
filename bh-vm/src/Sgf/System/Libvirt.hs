@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Sgf.System.Libvirt
     ( Name (..)
@@ -15,14 +16,18 @@ module Sgf.System.Libvirt
     , Domain (..)
     , domainXml
     , readDomainXml
+    , initDomain
     )
   where
 
 import Data.Monoid
+import Data.Maybe
 import Data.Generics
 import Data.Attoparsec.Text
 import qualified Data.Text as T
 import Control.Applicative
+import Control.Monad
+import Control.Monad.IO.Class
 import Text.XML.Light
 import qualified Text.XML.Light.Lexer as X
 import qualified Filesystem.Path.CurrentOS as F
@@ -88,6 +93,8 @@ volumeXml           = mkRecL vol `extRecL` pureQ (elN "volume")
       | elN "capacity" x    = next $ endParserQ (parseSize . onlyTextT)
       | elN "name"     x    = next $ endParserQ (parseName . onlyTextT)
       | otherwise           = stop mempty
+
+-- FIXME: Initialize '_volPath' in 'volumeXml'.
 
 -- | Parse 'Volume' from an 'XmlSource' containing libvirt @volume@ xml.
 readVolumeXml :: X.XmlSource s => s -> Volume
@@ -257,11 +264,27 @@ domainXml           = mkRecL dom `extRecL` pureQ (elN "domain")
       | elN "devices" x = next (mkRecL domDevices)
       | otherwise       = stop mempty
 
--- | Parse 'Domain' from an 'XmlSource' containing libvirt @domain@ xml.
+-- | Parse 'Domain' from an 'XmlSource' containing libvirt @domain@ xml. Note,
+-- that 'Volume'-s will be partially initialized, because libvirt @domain@ xml
+-- does not contain all required information (only '_volPath' in fact).
 readDomainXml :: X.XmlSource s => s -> Domain
 readDomainXml       = ($ mempty) . appEndo
                         . everythingRecBut mappend domainXml
                         . parseXML
+
+-- | Initialize 'Domain' from an libvirt @domain@ xml and query additional
+-- information about each 'Volume' using supplied function and initialize it.
+initDomain :: forall m s. (MonadIO m, X.XmlSource s) =>
+              (F.FilePath -> m s) -> s -> m Domain
+initDomain f        = modifyM initVols . readDomainXml
+  where
+    -- | I need that type-signature, otherwise 'Traversable' constraint of
+    -- 'mapM' can't be solved.
+    initVols :: [Volume] -> m [Volume]
+    initVols        = mapM $ \v -> do
+                        let p = fromJust . getAlt . _volPath $ v
+                        vx <- f p
+                        return (v <> readVolumeXml vx)
 
 -- $utils
 

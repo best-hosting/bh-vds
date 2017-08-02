@@ -11,3 +11,6 @@ set y               = gmapT (mkT (const y))
 modify :: (Typeable b, Data a) => (b -> b) -> a -> a
 modify f            = gmapT (mkT f)
 
+modifyM :: (Typeable b, Data a, Monad m) => (b -> m b) -> a -> m a
+modifyM f           = gmapM (mkM f)
+
