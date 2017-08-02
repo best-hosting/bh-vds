@@ -21,11 +21,13 @@ import Control.Monad.Reader
 import Data.Monoid
 import Data.String
 import Control.Arrow
+import Control.Monad.Except
 import Filesystem.Path.CurrentOS
 import qualified Filesystem.Path.CurrentOS as F (empty)
 
 import Sgf.System.Libvirt
 import Sgf.Data.Generics.Lenses
+import Sgf.System.Libvirt.Template
 
 
 {-data Plan           = Plan {size :: Int, memory :: Int, cpu :: Int}
@@ -45,7 +47,32 @@ class FromXML a where
       )-}
 
 checkIp :: IP -> Domain -> Bool
-checkIp x           = (x ==) . _domIp
+checkIp x           = (x ==) . _ip
+
+t :: Volume
+t   = mempty
+        { _volName = either error id $ parseName "abc"
+        , _volSize = either error id $ parseSize "1"
+        }
+
+d :: Domain
+d   = mempty
+        { _name = either error id $ parseName "dddd"
+        , _arch = either error id $ parseArch "x86_64"
+        , _vcpu = either error id $ parseVCpu "3"
+        , _memory = either error id $ parseSize "2886"
+        , _bridge = either error (($ mempty) . appEndo) $ parseIntName "eeeeth"
+        , _ip = either error id $ parseIP "9.8.7.6"
+        }
+
+genTmpl2 :: (MonadIO m) => m ()
+genTmpl2    = do
+    r <- runExceptT $ do
+      genVolumeXml t "../vol.xml" "./vol-gen.xml"
+      genDomainXml d "../dom.xml" "./dom-gen.xml"
+    case r of
+      Left e -> liftIO $ putStr e
+      _      -> return ()
 
 -- T.readFile "../volume.xml" >>= return . (\x -> gmapT (id `extT` volNameT x `extT` volSizeT x) defVolume) . parseXML
 main :: IO ()
