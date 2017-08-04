@@ -9,6 +9,10 @@ dependencies: &deps
     - mtl
     - system-filepath
     - attoparsec
+    - ginger
+    - unordered-containers
+    - hashable
+    - text-show
 ghc-options: &ghc-opts
     - -Wall
 _exe-ghc-opts: &exe-ghc-opts

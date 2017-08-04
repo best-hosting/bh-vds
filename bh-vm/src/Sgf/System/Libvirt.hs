@@ -4,15 +4,23 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Sgf.System.Libvirt
-    ( Name (..)
-    , Size (..)
+    ( Name
+    , parseName
+    , Size
+    , parseSize
     , Pool (..)
     , Volume (..)
     , volumeXml
     , readVolumeXml
 
-    , IP (..)
+    , Arch
+    , parseArch
+    , VCpu
+    , parseVCpu
     , Interface (..)
+    , parseIntName
+    , IP
+    , parseIP
     , Domain (..)
     , domainXml
     , readDomainXml
@@ -25,6 +33,7 @@ import Data.Maybe
 import Data.Generics
 import Data.Attoparsec.Text
 import qualified Data.Text as T
+import TextShow
 import Control.Applicative
 import Control.Monad
 import Control.Monad.IO.Class
@@ -40,20 +49,30 @@ import Sgf.Text.XML.Light.Proc
 
 
 -- | Type for names.
-newtype Name        = Name (Last T.Text)
+newtype Name        = Name {getName :: Last T.Text}
   deriving (Show, Typeable, Data, Eq, Monoid)
 
 -- | Parser for 'Name'.
 parseName :: T.Text -> Either String Name
 parseName           = Right . Name . Last . Just
 
+-- | Note, this instance does /not/ match with the 'Show' instance
+-- intentionally.
+instance TextShow Name where
+    showb x         = fromText . maybe "" id . getLast . getName $ x
+
 -- | Type for sizes.
-newtype Size        = Size (Sum Integer)
+newtype Size        = Size {getSize :: Sum Integer}
   deriving (Show, Typeable, Data, Eq, Ord, Num, Monoid)
 
 -- | Parser for 'Size'.
 parseSize :: T.Text -> Either String Size
 parseSize           = parseOnly (Size . Sum <$> decimal)
+
+-- | Note, this instance does /not/ match with the 'Show' instance
+-- intentionally.
+instance TextShow Size where
+    showb x         = fromText . showt . getSum . getSize $ x
 
 -- | Type for libvirt storage pool.
 newtype Pool        = Pool {_poolName :: Name}
@@ -107,7 +126,7 @@ readVolumeXml       = ($ mempty) . appEndo
 
 
 -- | Type for architecture.
-newtype Arch        = Arch (Last T.Text)
+newtype Arch        = Arch {getArch :: Last T.Text}
   deriving (Show, Typeable, Data, Eq, Monoid)
 
 -- | Parser for 'Arch'.
@@ -115,21 +134,31 @@ parseArch :: T.Text -> Either String Arch
 parseArch           = parseOnly $ Arch . Last . Just
                         <$> (string "x86_64" <|> string "i686")
 
+-- | Note, this instance does /not/ match with the 'Show' instance
+-- intentionally.
+instance TextShow Arch where
+    showb x         = fromText . maybe "" id . getLast . getArch $ x
+
 -- | Type for libvirt @vcpu@ definition inside domain.
-newtype VCpu        = VCpu {_vcpu :: Sum Integer}
+newtype VCpu        = VCpu {getVCpu :: Sum Integer}
   deriving (Show, Typeable, Data, Eq, Monoid)
 
 -- | Parser for 'VCpu'.
 parseVCpu :: T.Text -> Either String VCpu
 parseVCpu           = parseOnly (VCpu . Sum <$> decimal)
 
+-- | Note, this instance does /not/ match with the 'Show' instance
+-- intentionally.
+instance TextShow VCpu where
+    showb x         = fromText . showt . getSum . getVCpu $ x
+
 -- | Type for libvirt network @interface@ definition inside domain.
 newtype Interface   = Interface {_intName :: Name}
   deriving (Show, Typeable, Data, Eq, Monoid)
 
--- | Parser for 'Interface'.
-parseInterface :: T.Text -> Either String Interface
-parseInterface      = (Interface <$>) . parseName
+-- | Parser for '_intName'.
+parseIntName :: T.Text -> Either String (Endo Interface)
+parseIntName        = fmap (\x -> Endo $ \i -> i{_intName = x}) . parseName
 
 -- | Type for IP address.
 data IP             = IP    { _octet1 :: Sum Int
@@ -163,6 +192,12 @@ parseIP             = parseOnly $
                                 "Impossible happens: negative octet " ++ show x
                             | otherwise -> pure (Sum x)
 
+instance TextShow IP where
+    showb x         = fromText $    (showt . getSum . _octet1 $ x)
+                        <>  "." <>  (showt . getSum . _octet2 $ x)
+                        <>  "." <>  (showt . getSum . _octet3 $ x)
+                        <>  "." <>  (showt . getSum . _octet4 $ x)
+
 -- | Type for libvirt @domain@. Note, the type of '_cdrom': 'FilePath'
 -- 'Monoid' instance is wrong (it does not satisfy 'Monoid' laws), thus i need
 -- a wrapper to fix it.
@@ -170,11 +205,11 @@ data Domain         = Domain
                         { _name     :: Name
                         , _arch     :: Arch
                         , _memory   :: Size
-                        , _domVCpu  :: VCpu
+                        , _vcpu     :: VCpu
                         , _cdrom    :: Alt Maybe F.FilePath
                         , _volume   :: [Volume]
                         , _bridge   :: Interface
-                        , _domIp    :: IP
+                        , _ip       :: IP
                         }
   deriving (Show, Typeable, Data, Eq)
 
@@ -183,21 +218,21 @@ instance Monoid Domain where
                         { _name     = mempty
                         , _arch     = mempty
                         , _memory   = mempty
-                        , _domVCpu  = mempty
+                        , _vcpu     = mempty
                         , _cdrom    = Alt Nothing
                         , _volume   = mempty
                         , _bridge   = mempty
-                        , _domIp    = mempty
+                        , _ip       = mempty
                         }
     x `mappend` y   = Domain
                         { _name     = _name x       <> _name y
                         , _arch     = _arch x       <> _arch y
                         , _memory   = _memory x     <> _memory y
-                        , _domVCpu  = _domVCpu x    <> _domVCpu y
+                        , _vcpu     = _vcpu x       <> _vcpu y
                         , _cdrom    = _cdrom x      <> _cdrom y
                         , _volume   = _volume x     <> _volume y
                         , _bridge   = _bridge x     <> _bridge y
-                        , _domIp    = _domIp x      <> _domIp y
+                        , _ip       = _ip x         <> _ip y
                         }
 
 ---- | Generic query for '_arch' working on a /partial/ xml tree.
@@ -224,6 +259,9 @@ sourceDevXml p      = endQ p
 bridgeXml :: GenericRecQ (Endo Domain, Bool)
 bridgeXml           = endParserQ (parseInterface . T.pack)
                         `extRecL` pureQ (attrN "bridge")
+  where
+    parseInterface :: T.Text -> Either String Interface
+    parseInterface  = fmap (($ mempty) . appEndo) . parseIntName
 
 -- | Generic query for 'IP' inside 'Domain' working on a /partial/ xml tree.
 domIpXml :: GenericRecQ (Endo Domain, Bool)
