@@ -25,8 +25,9 @@ import Control.Monad.Except
 import Filesystem.Path.CurrentOS
 import qualified Filesystem.Path.CurrentOS as F (empty)
 
-import Sgf.System.Libvirt
 import Sgf.Data.Generics.Lenses
+import Sgf.System.Libvirt.Types
+import Sgf.System.Libvirt.XML
 import Sgf.System.Libvirt.Template
 
 

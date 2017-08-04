@@ -25,7 +25,7 @@ import System.IO.Error
 import qualified Filesystem.Path.CurrentOS as F
 import Control.Monad.Writer
 
-import Sgf.System.Libvirt
+import Sgf.System.Libvirt.Types
 
 
 -- | Convert 'ParserError' to an error message and throw it in 'MonadError'.
