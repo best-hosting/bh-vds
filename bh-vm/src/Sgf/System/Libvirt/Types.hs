@@ -1,12 +1,15 @@
-{-# LANGUAGE OverloadedStrings  #-}
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE DeriveDataTypeable         #-}
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards            #-}
 
 module Sgf.System.Libvirt.Types
     ( Name
     , parseName
     , Size
     , parseSize
+    , Path (..)
     , Pool (..)
     , Volume (..)
 
@@ -15,111 +18,251 @@ module Sgf.System.Libvirt.Types
     , VCpu
     , parseVCpu
     , Interface (..)
-    , parseIntName
     , IP
     , parseIP
     , Domain (..)
+
+    , VmError (..)
+    , toVmError
+    , toVmErrorM
+    , liftVmError
     )
   where
 
+import Data.Maybe
+import qualified Data.String as S
 import Data.Monoid
 import Data.Generics
-import Data.Attoparsec.Text
+import qualified Text.Ginger as G
+import Data.Yaml.Aeson
+import Data.Aeson.Types
+import qualified Data.Attoparsec.Text as A
 import qualified Data.Text as T
 import TextShow
 import Control.Applicative
+import Control.Monad.Except
 import qualified Filesystem.Path.CurrentOS as F
 
-
--- | Type for names.
-newtype Name        = Name {getName :: Last T.Text}
-  deriving (Show, Typeable, Data, Eq, Monoid)
+-- | Type for names. Use 'parseName' for converting from text and 'showt' for
+-- converting back to text.
+newtype Name        = Name {getName :: T.Text}
+  deriving (Show, Typeable, Data, Eq, Ord, Monoid)
 
 -- | Parser for 'Name'.
 parseName :: T.Text -> Either String Name
-parseName           = Right . Name . Last . Just
+parseName           = Right . Name
 
 -- | Note, this instance does /not/ match with the 'Show' instance
--- intentionally.
+-- intentionally. I shouldn't use 'showb' for 'Text' here (instead of
+-- 'fromText'), because it adds double quotes around text, but i don't need
+-- them.
 instance TextShow Name where
-    showb x         = fromText . maybe "" id . getLast . getName $ x
+    showb           = fromText . getName
+instance S.IsString Name where
+    fromString      = either error id . parseName . T.pack
+instance FromJSON Name where
+    parseJSON v     = parseJSON v >>= either fail pure . parseName
+instance ToJSON Name where
+    toJSON          = toJSON . showt
 
--- | Type for sizes.
+-- | Type for sizes. Use 'parseSize' for converting from text, 'fromInteger'
+-- for converting from a number and 'toInteger' for converting to a number.
+-- Not all 'Integer's are valid 'Size's, thus i don't provide lens
+-- 'LensA Size Integer', because such lens will break lens laws.
 newtype Size        = Size {getSize :: Sum Integer}
-  deriving (Show, Typeable, Data, Eq, Ord, Num, Monoid)
+  deriving (Show, Typeable, Data, Eq, Ord, Monoid)
+
+-- | Convert 'Integer' to 'Size' returning an error, if integer is out of
+-- bounds.
+toSize :: Integer -> Either String Size
+toSize x
+  | x >= 0          = return $ Size (Sum x)
+  | otherwise       = Left $ "Negative 'Size' '" <> show x <> "'."
+-- | Convert 'Integer' to 'Size' returning 0 on out of bound errors.
+toSize' :: Integer -> Size
+toSize'             = either (const (Size mempty)) id . toSize
 
 -- | Parser for 'Size'.
 parseSize :: T.Text -> Either String Size
-parseSize           = parseOnly (Size . Sum <$> decimal)
+parseSize           = A.parseOnly $ A.decimal >>= either fail pure . toSize
+
+-- | Substraction rounds negative size to 0. But 'fromInteger' fails with
+-- runtime error, when called on negative value.
+instance Num Size where
+    Size x + Size y = Size (x + y)
+    Size x - Size y = toSize' $ getSum (x - y)
+    Size x * Size y = Size (x * y)
+    abs (Size x)    = Size (abs x)
+    signum (Size x) = Size (signum x)
+    fromInteger     = either error id . toSize
+instance Enum Size where
+    toEnum          = fromInteger . toInteger
+    fromEnum        = fromInteger . toInteger
+instance Real Size where
+    toRational      = toRational . toInteger
+instance Integral Size where
+    x `quotRem` y   = let x' = toInteger $ x
+                          y' = toInteger $ y
+                          (q, r) = x' `quotRem` y'
+                      in  (fromInteger q, fromInteger r)
+    toInteger       = getSum . getSize
 
 -- | Note, this instance does /not/ match with the 'Show' instance
 -- intentionally.
 instance TextShow Size where
-    showb x         = fromText . showt . getSum . getSize $ x
+    showb           = fromText . showt . toInteger
+instance FromJSON Size where
+    parseJSON v     = parseJSON v >>= either fail pure . toSize
+instance ToJSON Size where
+    toJSON          = toJSON . toInteger
+
+-- | 'FilePath' 'Monoid' instance is wrong (it does not satisfy 'Monoid'
+-- laws), thus i need a wrapper to fix it. See
+-- https://github.com/fpco/haskell-filesystem/issues/19 .
+-- FIXME: Remove 'Path' and just export corresponding lens.
+newtype Path        = Path {getPath :: F.FilePath}
+  deriving (Show, Typeable, Data, Eq, Ord)
+
+instance Monoid Path where
+    mempty          = Path mempty
+    Path x `mappend` Path y
+      | x == mempty = Path y
+      | y == mempty = Path x
+      | otherwise   = Path (x `mappend` y)
+instance TextShow Path where
+    showb           = fromString . F.encodeString . getPath
+instance FromJSON Path where
+    parseJSON v     = Path . F.decodeString <$> parseJSON v
+instance ToJSON Path where
+    toJSON          = toJSON . F.encodeString . getPath
 
 -- | Type for libvirt storage pool.
-newtype Pool        = Pool {_poolName :: Name}
-  deriving (Show, Typeable, Data, Eq, Monoid)
+newtype Pool        = Pool {poolName :: Name}
+  deriving (Show, Typeable, Data, Eq, Ord, Monoid)
 
--- | Type for libvirt storage volume. Note, the type of '_volPath': 'FilePath'
--- 'Monoid' instance is wrong (it does not satisfy 'Monoid' laws), thus i need
--- a wrapper to fix it.
+instance TextShow Pool where
+    showb           = showb . poolName
+instance FromJSON Pool where
+    parseJSON v     = Pool <$> parseJSON v
+instance ToJSON Pool where
+    toJSON          = toJSON . poolName
+
+-- | Type for libvirt storage volume.
 data Volume         = Volume
-                        { _volName  :: Name         -- ^ Volume @name@.
-                        , _volSize  :: Size         -- ^ Volume @capacity@.
-                        , _volPath  :: Alt Maybe F.FilePath -- ^ Volume @target -> path@.
-                        , _pool     :: Pool         -- ^ Volume pool.
+                        { volName  :: Name              -- ^ Volume @name@.
+                        , volSize  :: Last Size         -- ^ Volume @capacity@.
+                        , volPath  :: Alt Maybe Path    -- ^ Volume @<target><path/>@.
+                        , volPool  :: Last Pool         -- ^ Volume pool.
                         }
-  deriving (Show, Typeable, Data, Eq)
+  deriving (Show, Typeable, Data, Eq, Ord)
 
 instance Monoid Volume where
     mempty          = Volume
-                        { _volName  = mempty
-                        , _volSize  = mempty
-                        , _volPath  = mempty
-                        , _pool     = mempty
+                        { volName   = mempty
+                        , volSize   = Last (Just mempty)
+                        , volPath   = mempty
+                        , volPool   = mempty
                         }
     x `mappend` y   = Volume
-                        { _volName  = _volName x <> _volName y
-                        , _volSize  = _volSize x <> _volSize y
-                        , _volPath  = _volPath x <> _volPath y
-                        , _pool     = _pool x    <> _pool y
+                        { volName   = volName x <> volName y
+                        , volSize   = volSize x <> volSize y
+                        , volPath   = volPath x <> volPath y
+                        , volPool   = volPool x <> volPool y
                         }
 
--- | Type for architecture.
+instance FromJSON Volume where
+    parseJSON           = withObject "Volume" $ \o -> Volume
+                            <$> o .:? "name" .!= mempty -- _volName
+                            <*> o .:? "size" .!= mempty -- _volSize
+                            <*> (Alt <$> o .:? "path" .!= mempty) -- _volPath
+                            <*> o .:? "pool" .!= mempty -- _pool
+instance ToJSON Volume where
+    toJSON Volume{..}   = object . catMaybes $
+                            [ "name" .=? volName
+                            , "size" .=? volSize
+                            , "path" .=? getAlt volPath
+                            , "pool" .=? volPool
+                            ]
+
+-- | Type for architecture. Use 'parseArch' for converting from text and
+-- 'showt' for converting back to text.
 newtype Arch        = Arch {getArch :: Last T.Text}
-  deriving (Show, Typeable, Data, Eq, Monoid)
+  deriving (Show, Typeable, Data, Eq, Ord, Monoid)
 
 -- | Parser for 'Arch'.
 parseArch :: T.Text -> Either String Arch
-parseArch           = parseOnly $ Arch . Last . Just
-                        <$> (string "x86_64" <|> string "i686")
+parseArch           = A.parseOnly $ Arch . Last . Just
+                        <$> (A.string "x86_64" <|> A.string "i686")
 
 -- | Note, this instance does /not/ match with the 'Show' instance
 -- intentionally.
 instance TextShow Arch where
-    showb x         = fromText . maybe "" id . getLast . getArch $ x
+    showb           = fromText . fromMaybe "" . getLast . getArch
+instance FromJSON Arch where
+    parseJSON v     = parseJSON v >>= either fail pure . parseArch
+instance ToJSON Arch where
+    toJSON          = toJSON . showt
 
--- | Type for libvirt @vcpu@ definition inside domain.
+-- | Type for libvirt @vcpu@ definition inside domain. Use 'parseVCpu' for
+-- converting from text, 'fromInteger' for converting from a number and
+-- 'toInteger' for converting to a number. Not all 'Integer's are valid
+-- 'VCpu's, hence i don't provide lens 'LensA VCpu Integer', because such lens
+-- will break lens laws.
 newtype VCpu        = VCpu {getVCpu :: Sum Integer}
-  deriving (Show, Typeable, Data, Eq, Monoid)
+  deriving (Show, Typeable, Data, Eq, Ord, Monoid)
+
+-- | Convert 'Integer' to 'VCpu' returning an error, if integer is out of
+-- bounds.
+toVCpu :: Integer -> Either String VCpu
+toVCpu x
+  | x >= 0          = return $ VCpu (Sum x)
+  | otherwise       = Left $ "Negative or zero 'VCpu' '" <> show x <> "'."
+-- | Convert 'Integer' to 'VCpu' returning 0 on out of bound errors.
+toVCpu' :: Integer -> VCpu
+toVCpu'             = either (const (VCpu mempty)) id . toVCpu
 
 -- | Parser for 'VCpu'.
 parseVCpu :: T.Text -> Either String VCpu
-parseVCpu           = parseOnly (VCpu . Sum <$> decimal)
+parseVCpu           = A.parseOnly $ A.decimal >>= either fail pure . toVCpu
+
+-- | Substraction rounds negative size to 0. But 'fromInteger' fails with
+-- runtime error, when called on negative value.
+instance Num VCpu where
+    VCpu x + VCpu y = VCpu (x + y)
+    VCpu x - VCpu y = toVCpu' $ getSum (x - y)
+    VCpu x * VCpu y = VCpu (x * y)
+    abs (VCpu x)    = VCpu (abs x)
+    signum (VCpu x) = VCpu (signum x)
+    fromInteger     = either error id . toVCpu
+instance Enum VCpu where
+    toEnum          = fromInteger . toInteger
+    fromEnum        = fromInteger . toInteger
+instance Real VCpu where
+    toRational      = toRational . toInteger
+instance Integral VCpu where
+    x `quotRem` y   = let x' = toInteger $ x
+                          y' = toInteger $ y
+                          (q, r) = x' `quotRem` y'
+                      in  (fromInteger q, fromInteger r)
+    toInteger       = getSum . getVCpu
 
 -- | Note, this instance does /not/ match with the 'Show' instance
 -- intentionally.
 instance TextShow VCpu where
-    showb x         = fromText . showt . getSum . getVCpu $ x
+    showb           = fromText . showt . toInteger
+instance FromJSON VCpu where
+    parseJSON v     = parseJSON v >>= either fail pure . toVCpu
+instance ToJSON VCpu where
+    toJSON          = toJSON . toInteger
 
 -- | Type for libvirt network @interface@ definition inside domain.
-newtype Interface   = Interface {_intName :: Name}
-  deriving (Show, Typeable, Data, Eq, Monoid)
+newtype Interface   = Interface {intName :: Name}
+  deriving (Show, Typeable, Data, Eq, Ord, Monoid)
 
--- | Parser for '_intName'.
-parseIntName :: T.Text -> Either String (Endo Interface)
-parseIntName        = fmap (\x -> Endo $ \i -> i{_intName = x}) . parseName
+instance FromJSON Interface where
+    parseJSON v     = Interface <$> parseJSON v
+instance ToJSON Interface where
+    toJSON Interface{..}    = toJSON intName
 
 -- | Type for IP address.
 data IP             = IP    { _octet1 :: Sum Int
@@ -127,7 +270,7 @@ data IP             = IP    { _octet1 :: Sum Int
                             , _octet3 :: Sum Int
                             , _octet4 :: Sum Int
                             }
-  deriving (Show, Typeable, Data, Eq)
+  deriving (Show, Typeable, Data, Eq, Ord)
 
 instance Monoid IP where
     mempty          = IP mempty mempty mempty mempty
@@ -139,19 +282,19 @@ instance Monoid IP where
 
 -- | Parser for 'IP'.
 parseIP :: T.Text -> Either String IP
-parseIP             = parseOnly $
+parseIP             = A.parseOnly $
                         IP <$> octet <*> octet <*> octet <*> octet
   where
-    octet :: Parser (Sum Int)
+    octet :: A.Parser (Sum Int)
     octet           = do
-                        x <- decimal <* (string "." <|> endOfInput *> pure "")
-                        case x of
-                          _
-                            | x > 255   -> error $
-                                "Octet " ++ show x ++ " is too great."
-                            | x < 0     -> error $
-                                "Impossible happens: negative octet " ++ show x
-                            | otherwise -> pure (Sum x)
+        x <- A.decimal <* (A.string "." <|> A.endOfInput *> pure "")
+        case x of
+          _
+            | x > 255   -> error $
+                "Octet " ++ show x ++ " is too great."
+            | x < 0     -> error $
+                "Impossible happens: negative octet " ++ show x
+            | otherwise -> pure (Sum x)
 
 instance TextShow IP where
     showb x         = fromText $    (showt . getSum . _octet1 $ x)
@@ -159,40 +302,95 @@ instance TextShow IP where
                         <>  "." <>  (showt . getSum . _octet3 $ x)
                         <>  "." <>  (showt . getSum . _octet4 $ x)
 
--- | Type for libvirt @domain@. Note, the type of '_cdrom': 'FilePath'
--- 'Monoid' instance is wrong (it does not satisfy 'Monoid' laws), thus i need
--- a wrapper to fix it.
+instance FromJSON IP where
+    parseJSON v     = parseJSON v >>= either fail pure . parseIP
+instance ToJSON IP where
+    toJSON          = toJSON . showt
+
+-- | Type for libvirt @domain@.
 data Domain         = Domain
-                        { _name     :: Name
-                        , _arch     :: Arch
-                        , _memory   :: Size
-                        , _vcpu     :: VCpu
-                        , _cdrom    :: Alt Maybe F.FilePath
-                        , _volume   :: [Volume]
-                        , _bridge   :: Interface
-                        , _ip       :: IP
+                        { name      :: Name
+                        , arch      :: Arch
+                        , memory    :: Last Size
+                        , vcpu      :: Last VCpu
+                        , cdrom     :: Alt Maybe Path
+                        , volume    :: [Volume]
+                        , bridge    :: Last Interface
+                        , ip        :: Last IP
                         }
-  deriving (Show, Typeable, Data, Eq)
+  deriving (Show, Typeable, Data, Eq, Ord)
 
 instance Monoid Domain where
     mempty          = Domain
-                        { _name     = mempty
-                        , _arch     = mempty
-                        , _memory   = mempty
-                        , _vcpu     = mempty
-                        , _cdrom    = Alt Nothing
-                        , _volume   = mempty
-                        , _bridge   = mempty
-                        , _ip       = mempty
+                        { name      = mempty
+                        , arch      = mempty
+                        , memory    = mempty
+                        , vcpu      = mempty
+                        , cdrom     = mempty
+                        , volume    = mempty
+                        , bridge    = mempty
+                        , ip        = mempty
                         }
     x `mappend` y   = Domain
-                        { _name     = _name x       <> _name y
-                        , _arch     = _arch x       <> _arch y
-                        , _memory   = _memory x     <> _memory y
-                        , _vcpu     = _vcpu x       <> _vcpu y
-                        , _cdrom    = _cdrom x      <> _cdrom y
-                        , _volume   = _volume x     <> _volume y
-                        , _bridge   = _bridge x     <> _bridge y
-                        , _ip       = _ip x         <> _ip y
+                        { name      = name x        <> name y
+                        , arch      = arch x        <> arch y
+                        , memory    = memory x      <> memory y
+                        , vcpu      = vcpu x        <> vcpu y
+                        , cdrom     = cdrom x       <> cdrom y
+                        , volume    = volume x      <> volume y
+                        , bridge    = bridge x      <> bridge y
+                        , ip        = ip x          <> ip y
                         }
+
+instance FromJSON Domain where
+    parseJSON       = withObject "Domain" $ \o -> Domain
+                        <$> o .:? "name"    .!= mempty  -- _name
+                        <*> o .:? "arch"    .!= mempty  -- _arch
+                        <*> o .:? "memory"  .!= mempty  -- _memory
+                        <*> o .:? "vcpu"    .!= mempty  -- _vcpu
+                        <*> (Alt <$> o .:? "cdrom" .!= mempty)  -- _cdrom
+                        <*> o .:? "volume"  .!= mempty  -- _volume
+                        <*> o .:? "bridge"  .!= mempty  -- _interface
+                        <*> o .:? "ip"      .!= mempty  -- _ip
+instance ToJSON Domain where
+    toJSON Domain{..}   = object . catMaybes $
+                            [ "name"    .=? name
+                            , "arch"    .=? arch
+                            , "memory"  .=? memory
+                            , "vcpu"    .=? vcpu
+                            , "cdrom"   .=? getAlt cdrom
+                            , "volume"  .=? volume
+                            , "bridge"  .=? bridge
+                            , "ip"      .=? ip
+                            ]
+
+infixr 8 .=?
+(.=?) :: (Eq v, Monoid v, ToJSON v, KeyValue kv) => T.Text -> v -> Maybe kv
+t .=? x
+  | x == mempty     = Nothing
+  | otherwise       = Just (t .= x)
+
+optionA :: (Monoid a, Alternative f) => f a -> f a
+optionA             = A.option mempty
+
+data VmError        = XmlGenError G.ParserError
+                    | YamlParseError ParseException
+                    | LibvirtError T.Text
+                    | UnknownError TypeRep
+  deriving (Show)
+
+-- | Convert some error to 'VmError'. Note, that 'XmlGenerationError' value
+-- can't be constructed using this function, because it contains
+-- 'IncludeResolver'.
+toVmError :: Typeable a => a -> VmError
+toVmError x         = fromMaybe (UnknownError (typeOf x)) $
+        YamlParseError  <$> cast x
+    <|> XmlGenError     <$> cast x
+    <|> LibvirtError    <$> cast x
+
+toVmErrorM :: (Functor m, Typeable e) => ExceptT e m a -> ExceptT VmError m a
+toVmErrorM          = withExceptT toVmError
+
+liftVmError :: (Typeable e, MonadError VmError m) => m (Either e a) -> m a
+liftVmError m       = m >>= either (throwError . toVmError) return
 

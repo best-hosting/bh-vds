@@ -1,0 +1,15 @@
+ipmap:
+  1.1.1.1: []
+  2.2.2.2: []
+  3.3.3.3: []
+volume:
+  pool: syspool
+  name: vds
+  size: 3
+domain:
+  bridge: br0
+  vcpu: 1
+  memory: 512
+  volume:
+  - name: boot
+    size: 5

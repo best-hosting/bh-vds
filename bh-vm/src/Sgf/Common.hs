@@ -2,6 +2,8 @@
 module Sgf.Common
   where
 
+import Data.Monoid
+import Data.Maybe
 import Control.Applicative
 import Control.Arrow
 
@@ -34,4 +36,10 @@ infixr 4 <*&>
 (<*&>) :: (Applicative f, Monoid r) =>
           f (r, Bool) -> f (r, Bool) -> f (r, Bool)
 (<*&>)              = liftA2 (*&)
+
+fromLast :: Monoid a => Last a -> a
+fromLast            = fromMaybe mempty . getLast
+
+fromAlt :: Monoid a => Alt Maybe a -> a
+fromAlt             = fromMaybe mempty . getAlt
 

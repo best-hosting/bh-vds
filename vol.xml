@@ -1,5 +1,4 @@
 <volume>
   <name>vm-{{name}}</name>
-  <capacity unit="G">2345</capacity>
-  <name>vm2</name>
+  <capacity unit="G">{{size}}</capacity>
 </volume>
