@@ -57,3 +57,6 @@ toLast              = Last . Just
 toFirst :: a -> First a
 toFirst             = First . Just
 
+notEmpty :: (Eq a, Monoid a) => a -> Bool
+notEmpty            = not . (mempty ==)
+
