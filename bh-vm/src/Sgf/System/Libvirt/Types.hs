@@ -374,7 +374,7 @@ optionA :: (Monoid a, Alternative f) => f a -> f a
 optionA             = A.option mempty
 
 data VmError        = XmlGenError G.ParserError
-                    | YamlParseError ParseException
+                    | YamlParseError F.FilePath ParseException
                     | LibvirtError T.Text
                     | UnknownError TypeRep
   deriving (Show)
@@ -384,9 +384,9 @@ data VmError        = XmlGenError G.ParserError
 -- 'IncludeResolver'.
 toVmError :: Typeable a => a -> VmError
 toVmError x         = fromMaybe (UnknownError (typeOf x)) $
-        YamlParseError  <$> cast x
-    <|> XmlGenError     <$> cast x
-    <|> LibvirtError    <$> cast x
+        uncurry YamlParseError  <$> cast x
+    <|>         XmlGenError     <$> cast x
+    <|>         LibvirtError    <$> cast x
 
 toVmErrorM :: (Functor m, Typeable e) => ExceptT e m a -> ExceptT VmError m a
 toVmErrorM          = withExceptT toVmError

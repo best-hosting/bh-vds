@@ -30,11 +30,13 @@ import Sgf.System.Libvirt.Types
 
 -- | Convert 'ParserError' to an error message.
 showParserError :: Source -> ParserError -> String
-showParserError src pe =
-    let e  = "Ginger parser error: " ++ peErrorMessage pe
-        es = showErrorPos (peSourceLine pe, peSourceColumn pe)
+showParserError src ParserError{..} =
+    let e  = "Ginger parser error" ++ showFileName ++ ": " ++ peErrorMessage
+        es = showErrorPos (peSourceLine, peSourceColumn)
     in  unlines $ e : es
   where
+    showFileName :: String
+    showFileName    = maybe "" (\s -> " in file '" ++ s ++ "'") peSourceName
     showErrorPos :: (Maybe Int, Maybe Int) -> [String]
     showErrorPos (Just l, Just c) =
         let ln = take 1 . drop (l - 1) . lines $ src

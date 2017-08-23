@@ -65,8 +65,10 @@ runP :: P () -> IO ()
 runP mx        = do
     r <- runExceptT . flip runReaderT defConfig . flip runStateT defPState $ mx
     liftIO $ case r of
-      Left (XmlGenError pe)     -> printParserError loadFile pe >>= putStrLn
-      Left (YamlParseError pe)  -> putStr $ prettyPrintParseException pe
+      Left (XmlGenError pe) -> printParserError loadFile pe >>= putStrLn
+      Left (YamlParseError f pe) -> putStrLn $
+        "Yaml parse error in file '" ++ F.encodeString f ++ "':\n"
+            ++ prettyPrintParseException pe
       Left (LibvirtError er)    -> T.putStrLn er
       Left (UnknownError t)     -> print $ "Unknown Error type: " ++ show t
       Right _ -> return ()
@@ -143,9 +145,9 @@ work                = do
     Config{..} <- ask
 
     -- Set default initial 'Domain' and load available IPs.
-    scf <- liftVmError . liftIO $ decodeFileEitherF sysConf
-    PlanConf{..} <- liftVmError . liftIO $ decodeFileEitherF planConf
-    OsConf{..} <- liftVmError . liftIO $ decodeFileEitherF osConf
+    scf <- liftVmError $ decodeFileEitherF sysConf
+    PlanConf{..} <- liftVmError $ decodeFileEitherF planConf
+    OsConf{..} <- liftVmError $ decodeFileEitherF osConf
     let ps0 = mergeConfigs domName scf (planDomain <> osDomain)
     put ps0
     PState{domain = dom0, ipMap = ipMap} <- get
@@ -167,9 +169,6 @@ work                = do
     forM_ (volume d1) $ \v -> do
         vh <- liftVmError $ genVolumeXml v volTmpl
         liftIO $ writeTextFile (F.fromText ("vol-gen-" <> showt (volName v)) <.> "xml") vh
-  where
-    decodeFileEitherF :: FromJSON a => F.FilePath -> IO (Either ParseException a)
-    decodeFileEitherF   = decodeFileEither . F.encodeString
 
 -- FIXME: Do not assign number, if there is only one 'mempty' volume. Or just
 -- do not assign number to first volume without name.

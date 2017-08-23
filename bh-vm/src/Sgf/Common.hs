@@ -4,8 +4,11 @@ module Sgf.Common
 
 import Data.Monoid
 import Data.Maybe
+import Data.Yaml.Aeson
 import Control.Applicative
 import Control.Arrow
+import Control.Monad.IO.Class
+import qualified Filesystem.Path.CurrentOS as F
 
 
 -- $tuples
@@ -42,4 +45,9 @@ fromLast            = fromMaybe mempty . getLast
 
 fromFirst :: Monoid a => First a -> a
 fromFirst           = fromMaybe mempty . getFirst
+
+decodeFileEitherF :: (MonadIO m, FromJSON a) =>
+                     F.FilePath -> m (Either (F.FilePath, ParseException) a)
+decodeFileEitherF f = either (\e -> Left (f, e)) Right <$>
+                       (liftIO . decodeFileEither . F.encodeString $ f)
 
