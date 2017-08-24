@@ -149,6 +149,7 @@ work                = do
     let ps0 = mergeConfigs domName scf (planDomain <> osDomain)
     put ps0
     PState{domain = dom0, ipMap = ipMap} <- get
+    liftIO $ encodeFile "gen.yaml" dom0
 
     PState{domain = d1} <- get
     d2 <- setVolPath d1
@@ -216,7 +217,7 @@ main                = do
     print dom
     vs <- forM (volume dom) $ \v -> do
       let --p  = everything (<|>) (Nothing `mkQ` (Just . _volPath)) dom
-          vf = "../" </> basename (getPath . fromJust . getAlt . volPath $ v) <.> "xml"
+          vf = "../" </> basename (getPath . fromFirst . volPath $ v) <.> "xml"
       cv <- T.readFile (F.encodeString vf)
       let vol = readVolumeXml cv
       print vol

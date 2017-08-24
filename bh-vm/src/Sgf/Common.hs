@@ -40,6 +40,6 @@ infixr 4 <*&>
 fromLast :: Monoid a => Last a -> a
 fromLast            = fromMaybe mempty . getLast
 
-fromAlt :: Monoid a => Alt Maybe a -> a
-fromAlt             = fromMaybe mempty . getAlt
+fromFirst :: Monoid a => First a -> a
+fromFirst           = fromMaybe mempty . getFirst
 

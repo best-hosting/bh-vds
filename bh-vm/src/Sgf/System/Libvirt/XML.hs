@@ -138,9 +138,9 @@ initDomain f        = modifyM initVols . readDomainXml
     -- | I need that type-signature, otherwise 'Traversable' constraint of
     -- 'mapM' can't be solved.
     initVols :: [Volume] -> m [Volume]
-    initVols        = mapM $ \v -> case getAlt (volPath v) of
-                          Nothing   -> return v
-                          Just p    -> do
+    initVols        = mapM $ \v -> case getFirst (volPath v) of
+                        Nothing -> return v
+                        Just p  -> do
                             vx <- f (getPath p)
                             let v'  = readVolumeXml vx
                                 vv' =  v <> v'

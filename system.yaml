@@ -6,6 +6,7 @@ volume:
   pool: syspool
   name: vds
   size: 3
+  path: /dev/vds
 domain:
   bridge: br0
   vcpu: 1

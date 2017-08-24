@@ -149,10 +149,10 @@ instance ToJSON Pool where
 
 -- | Type for libvirt storage volume.
 data Volume         = Volume
-                        { volName  :: Name              -- ^ Volume @name@.
-                        , volSize  :: Last Size         -- ^ Volume @capacity@.
-                        , volPath  :: Alt Maybe Path    -- ^ Volume @<target><path/>@.
-                        , volPool  :: Last Pool         -- ^ Volume pool.
+                        { volName  :: Name          -- ^ Volume @name@.
+                        , volSize  :: Last Size     -- ^ Volume @capacity@.
+                        , volPath  :: First Path    -- ^ Volume @<target><path/>@.
+                        , volPool  :: Last Pool     -- ^ Volume pool.
                         }
   deriving (Show, Typeable, Data, Eq, Ord)
 
@@ -174,13 +174,13 @@ instance FromJSON Volume where
     parseJSON           = withObject "Volume" $ \o -> Volume
                             <$> o .:? "name" .!= mempty -- _volName
                             <*> o .:? "size" .!= mempty -- _volSize
-                            <*> (Alt <$> o .:? "path" .!= mempty) -- _volPath
+                            <*> o .:? "path" .!= mempty -- _volPath
                             <*> o .:? "pool" .!= mempty -- _pool
 instance ToJSON Volume where
     toJSON Volume{..}   = object . catMaybes $
                             [ "name" .=? volName
                             , "size" .=? volSize
-                            , "path" .=? getAlt volPath
+                            , "path" .=? volPath
                             , "pool" .=? volPool
                             ]
 
@@ -313,7 +313,7 @@ data Domain         = Domain
                         , arch      :: Arch
                         , memory    :: Last Size
                         , vcpu      :: Last VCpu
-                        , cdrom     :: Alt Maybe Path
+                        , cdrom     :: First Path
                         , volume    :: [Volume]
                         , bridge    :: Last Interface
                         , ip        :: Last IP
@@ -344,21 +344,21 @@ instance Monoid Domain where
 
 instance FromJSON Domain where
     parseJSON       = withObject "Domain" $ \o -> Domain
-                        <$> o .:? "name"    .!= mempty  -- _name
-                        <*> o .:? "arch"    .!= mempty  -- _arch
-                        <*> o .:? "memory"  .!= mempty  -- _memory
-                        <*> o .:? "vcpu"    .!= mempty  -- _vcpu
-                        <*> (Alt <$> o .:? "cdrom" .!= mempty)  -- _cdrom
+                        <$> o .:? "name"    .!= mempty  -- name
+                        <*> o .:? "arch"    .!= mempty  -- arch
+                        <*> o .:? "memory"  .!= mempty  -- memory
+                        <*> o .:? "vcpu"    .!= mempty  -- vcpu
+                        <*> o .:? "cdrom"   .!= mempty  -- cdrom
                         <*> o .:? "volume"  .!= mempty  -- _volume
-                        <*> o .:? "bridge"  .!= mempty  -- _interface
-                        <*> o .:? "ip"      .!= mempty  -- _ip
+                        <*> o .:? "bridge"  .!= mempty  -- interface
+                        <*> o .:? "ip"      .!= mempty  -- ip
 instance ToJSON Domain where
     toJSON Domain{..}   = object . catMaybes $
                             [ "name"    .=? name
                             , "arch"    .=? arch
                             , "memory"  .=? memory
                             , "vcpu"    .=? vcpu
-                            , "cdrom"   .=? getAlt cdrom
+                            , "cdrom"   .=? cdrom
                             , "volume"  .=? volume
                             , "bridge"  .=? bridge
                             , "ip"      .=? ip

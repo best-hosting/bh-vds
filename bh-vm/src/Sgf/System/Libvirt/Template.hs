@@ -83,7 +83,7 @@ domainLookup Domain{..} n
   | n == "vcpu"     = toGVal . showt $ fromLast vcpu
   | n == "bridge"   = toGVal . showt $ intName (fromLast bridge)
   | n == "ip"       = toGVal . showt $ fromLast ip
-  | n == "cdrom"    = toGVal . showt $ fromAlt cdrom
+  | n == "cdrom"    = toGVal . showt $ fromFirst cdrom
   | otherwise       = error . T.unpack $ "No such variable: '" <> n <> "'"
 
 -- | Generate libvirt volume xml using specified 'Volume' value as
