@@ -1,7 +1,7 @@
 <domain type='kvm'>
   <name>{{name}}</name>
-  <memory unit='MiB'>128</memory>
-  <vcpu placement='static'>2</vcpu>
+  <memory unit='MiB'>{{memory}}</memory>
+  <vcpu placement='static'>{{vcpu}}</vcpu>
   <os>
     <type arch='{{arch}}'>hvm</type>
   </os>
@@ -17,7 +17,7 @@
       <driver name='qemu' type='raw'/>
       <target dev='hda' bus='ide'/>
       <readonly/>
-      <source file='/var/virt/mini-ubuntu-16.04-i386.iso'/>
+      <source file='{{cdrom}}'/>
       <boot order='1'/>
     </disk>
     <interface type='bridge'>

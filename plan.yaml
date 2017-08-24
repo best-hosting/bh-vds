@@ -1,0 +1,7 @@
+memory: 1024
+volume:
+    - size: 15
+    - size: 1000
+      name: backup
+      pool: bkppool
+vcpu: 3

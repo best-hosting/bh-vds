@@ -8,11 +8,15 @@ dependencies: &deps
     - syb
     - mtl
     - system-filepath
+    - system-fileio
     - attoparsec
     - ginger
     - unordered-containers
     - hashable
     - text-show
+    - containers
+    - yaml
+    - aeson
 ghc-options: &ghc-opts
     - -Wall
 _exe-ghc-opts: &exe-ghc-opts

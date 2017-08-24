@@ -52,9 +52,8 @@ readVolumeXml       = ($ mempty) . appEndo
                         . parseXML
 
 
----- | Generic query for '_arch' working on a /partial/ xml tree.
+-- | Generic query for '_arch' working on a /partial/ xml tree.
 archXml :: GenericRecQ (Endo Domain, Bool)
---archXml             = endQ (fromParser . parseArch . T.pack)
 archXml             = endParserQ (parseArch . T.pack)
                         `extRecL` pureQ (attrN "arch")
                         `extRecL` pureQ (elN "type")
@@ -74,11 +73,11 @@ sourceDevXml p      = endQ p
 -- | Generic query for 'Interface' inside 'Domain' working on a /partial/ xml
 -- tree.
 bridgeXml :: GenericRecQ (Endo Domain, Bool)
-bridgeXml           = endParserQ (parseInterface . T.pack)
+bridgeXml           = endParserQ (parseIntName . T.pack)
                         `extRecL` pureQ (attrN "bridge")
   where
-    parseInterface :: T.Text -> Either String Interface
-    parseInterface  = fmap (($ mempty) . appEndo) . parseIntName
+    parseIntName :: T.Text -> Either String Interface
+    parseIntName x  = Interface <$> parseName x
 
 -- | Generic query for 'IP' inside 'Domain' working on a /partial/ xml tree.
 domIpXml :: GenericRecQ (Endo Domain, Bool)
@@ -139,16 +138,17 @@ initDomain f        = modifyM initVols . readDomainXml
     -- | I need that type-signature, otherwise 'Traversable' constraint of
     -- 'mapM' can't be solved.
     initVols :: [Volume] -> m [Volume]
-    initVols        = mapM $ \v -> do
-                        let p = fromJust . getAlt . _volPath $ v
-                        vx <- f p
-                        let v'  = readVolumeXml vx
-                            vv' =  v <> v'
-                        if vv' /= v' <> v
-                          then error $ "Volume info does not match to domain.\n"
-                                ++ "Read volume: " ++ show v' ++ "\n"
-                                ++ "Domain's volume: " ++ show v
-                          else return vv'
+    initVols        = mapM $ \v -> case getFirst (volPath v) of
+                        Nothing -> return v
+                        Just p  -> do
+                            vx <- f (getPath p)
+                            let v'  = readVolumeXml vx
+                                vv' =  v <> v'
+                            if vv' /= v' <> v
+                              then error $ "Volume info does not match to domain.\n"
+                                    ++ "Read volume: " ++ show v' ++ "\n"
+                                    ++ "Domain's volume: " ++ show v
+                              else return vv'
 
 -- $utils
 
@@ -163,6 +163,6 @@ endParserQ :: (Typeable s, Typeable b, Data a) =>
 endParserQ p        = endQ $ either mempty (Endo . set) . p
 
 -- | Construct a proper 'Monoid' from a 'FilePath'.
-filePath :: String -> Alt Maybe F.FilePath
-filePath            = Alt . Just . F.decodeString
+filePath :: String -> Path
+filePath            = Path . F.decodeString
 
