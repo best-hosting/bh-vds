@@ -12,6 +12,10 @@ module Sgf.System.Libvirt.Types
     , Path (..)
     , Pool (..)
     , Volume (..)
+    , volNameL
+    , volSizeL
+    , volPathL
+    , volPoolL
 
     , Arch
     , parseArch
@@ -21,6 +25,14 @@ module Sgf.System.Libvirt.Types
     , IP
     , parseIP
     , Domain (..)
+    , nameL
+    , archL
+    , memoryL
+    , vcpuL
+    , cdromL
+    , volumeL
+    , bridgeL
+    , ipL
 
     , VmError (..)
     , toVmError
@@ -42,6 +54,9 @@ import TextShow
 import Control.Applicative
 import Control.Monad.Except
 import qualified Filesystem.Path.CurrentOS as F
+
+import Sgf.Control.Lens
+
 
 -- | Type for names. Use 'parseName' for converting from text and 'showt' for
 -- converting back to text.
@@ -159,7 +174,7 @@ data Volume         = Volume
 instance Monoid Volume where
     mempty          = Volume
                         { volName   = mempty
-                        , volSize   = Last (Just mempty)
+                        , volSize   = mempty
                         , volPath   = mempty
                         , volPool   = mempty
                         }
@@ -183,6 +198,15 @@ instance ToJSON Volume where
                             , "path" .=? volPath
                             , "pool" .=? volPool
                             ]
+
+volNameL :: LensA Volume Name
+volNameL f z@Volume {volName = x}   = fmap (\x' -> z{volName = x'}) (f x)
+volSizeL :: LensA Volume (Last Size)
+volSizeL f z@Volume {volSize = x}   = fmap (\x' -> z{volSize = x'}) (f x)
+volPathL :: LensA Volume (First Path)
+volPathL f z@Volume {volPath = x}   = fmap (\x' -> z{volPath = x'}) (f x)
+volPoolL :: LensA Volume (Last Pool)
+volPoolL f z@Volume {volPool = x}   = fmap (\x' -> z{volPool = x'}) (f x)
 
 -- | Type for architecture. Use 'parseArch' for converting from text and
 -- 'showt' for converting back to text.
@@ -319,6 +343,23 @@ data Domain         = Domain
                         , ip        :: Last IP
                         }
   deriving (Show, Typeable, Data, Eq, Ord)
+
+nameL :: LensA Domain Name
+nameL   f z@Domain {name = x}   = fmap (\x' -> z{name = x'}) (f x)
+archL :: LensA Domain Arch
+archL   f z@Domain {arch = x}   = fmap (\x' -> z{arch = x'}) (f x)
+memoryL :: LensA Domain (Last Size)
+memoryL f z@Domain {memory = x} = fmap (\x' -> z{memory = x'}) (f x)
+vcpuL :: LensA Domain (Last VCpu)
+vcpuL   f z@Domain {vcpu = x}   = fmap (\x' -> z{vcpu = x'}) (f x)
+cdromL :: LensA Domain (First Path)
+cdromL  f z@Domain {cdrom = x}  = fmap (\x' -> z{cdrom = x'}) (f x)
+volumeL :: LensA Domain [Volume]
+volumeL f z@Domain {volume = x} = fmap (\x' -> z{volume = x'}) (f x)
+bridgeL :: LensA Domain (Last Interface)
+bridgeL f z@Domain {bridge = x} = fmap (\x' -> z{bridge = x'}) (f x)
+ipL :: LensA Domain (Last IP)
+ipL     f z@Domain {ip = x}     = fmap (\x' -> z{ip = x'}) (f x)
 
 instance Monoid Domain where
     mempty          = Domain

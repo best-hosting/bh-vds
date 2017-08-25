@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes         #-}
 
 module Sgf.System.Libvirt.XML
     ( volumeXml
@@ -23,15 +24,16 @@ import qualified Text.XML.Light.Lexer as X
 import qualified Filesystem.Path.CurrentOS as F
 
 import Sgf.Common
+import Sgf.Control.Lens
 import Sgf.System.Libvirt.Types
 import Sgf.Data.Generics.Aliases
 import Sgf.Data.Generics.Schemes
-import Sgf.Data.Generics.Lenses
 import Sgf.Text.XML.Light.Proc
 
 
 volDiskXml :: GenericRecQ (Endo Volume, Bool)
-volDiskXml          = endParserQ (Right . filePath . onlyText')
+volDiskXml          = endParserQL volPathL
+                            (pure . toFirst . filePath . onlyText')
                         `extRecL` pureQ (elN "path")
 
 -- | Generic query for 'Volume' working on a libvirt storage @volume@ xml.
@@ -40,8 +42,8 @@ volumeXml           = mkRecL vol `extRecL` pureQ (elN "volume")
   where
     vol :: Element -> RecB (Endo Volume)
     vol x
-      | elN "capacity"  x   = next $ endParserQ (parseSize . onlyTextT)
-      | elN "name"      x   = next $ endParserQ (parseName . onlyTextT)
+      | elN "capacity"  x   = next $ volSizeL `endParserQL` (fmap toLast . parseSize . onlyTextT)
+      | elN "name"      x   = next $ volNameL `endParserQL` (parseName . onlyTextT)
       | elN "target"    x   = next $ volDiskXml
       | otherwise           = stop mempty
 
@@ -54,7 +56,7 @@ readVolumeXml       = ($ mempty) . appEndo
 
 -- | Generic query for '_arch' working on a /partial/ xml tree.
 archXml :: GenericRecQ (Endo Domain, Bool)
-archXml             = endParserQ (parseArch . T.pack)
+archXml             = endParserQL archL (parseArch . T.pack)
                         `extRecL` pureQ (attrN "arch")
                         `extRecL` pureQ (elN "type")
 
@@ -73,7 +75,7 @@ sourceDevXml p      = endQ p
 -- | Generic query for 'Interface' inside 'Domain' working on a /partial/ xml
 -- tree.
 bridgeXml :: GenericRecQ (Endo Domain, Bool)
-bridgeXml           = endParserQ (parseIntName . T.pack)
+bridgeXml           = endParserQL bridgeL (fmap toLast . parseIntName . T.pack)
                         `extRecL` pureQ (attrN "bridge")
   where
     parseIntName :: T.Text -> Either String Interface
@@ -81,7 +83,7 @@ bridgeXml           = endParserQ (parseIntName . T.pack)
 
 -- | Generic query for 'IP' inside 'Domain' working on a /partial/ xml tree.
 domIpXml :: GenericRecQ (Endo Domain, Bool)
-domIpXml            = endParserQ (parseIP . T.pack)
+domIpXml            = endParserQL ipL (fmap toLast . parseIP . T.pack)
     `extRecL` pureQ (attrN "value")
     `extRecL` pureQ (elN "parameter" <&&> elAttrQN (qn "name") "IP")
 
@@ -100,13 +102,13 @@ domDevices :: Element -> ((Endo Domain, Bool), GenericRecQ (Endo Domain, Bool))
 domDevices x
   | elN "interface" x   = next (mkRecL domInterfaces)
   | elN "disk" x && elAttrQN (qn "device") "cdrom" x = next $
-                          sourceFileXml (Endo . set . filePath)
+                          sourceFileXml (Endo . setA cdromL . toFirst . filePath)
   | elN "disk" x && elAttrQN (qn "device") "disk" x  = next $
-                          sourceDevXml (\y -> Endo $ modify (volDisk y :))
+                          sourceDevXml (\y -> Endo $ modifyA volumeL (volDisk y :))
   | otherwise           = stop mempty
   where
     volDisk :: String -> Volume
-    volDisk t       = set (filePath t) mempty
+    volDisk t       = setA volPathL (toFirst (filePath t)) mempty
 
 -- | Generic query for 'Domain' working on a libvirt @domain@ xml.
 domainXml :: GenericRecQ (Endo Domain, Bool)
@@ -114,10 +116,10 @@ domainXml           = mkRecL dom `extRecL` pureQ (elN "domain")
   where
     dom :: Element -> RecB (Endo Domain)
     dom x
-      | elN "name"    x = next $ endParserQ (parseName . onlyTextT)
+      | elN "name"    x = next $ nameL `endParserQL` (parseName . onlyTextT)
       | elN "os"      x = next archXml
-      | elN "memory"  x = next $ endParserQ (parseSize . onlyTextT)
-      | elN "vcpu"    x = next $ endParserQ (parseVCpu . onlyTextT)
+      | elN "memory"  x = next $ memoryL `endParserQL` (fmap toLast . parseSize . onlyTextT)
+      | elN "vcpu"    x = next $ vcpuL   `endParserQL` (fmap toLast . parseVCpu . onlyTextT)
       | elN "devices" x = next (mkRecL domDevices)
       | otherwise       = stop mempty
 
@@ -133,7 +135,7 @@ readDomainXml       = ($ mempty) . appEndo
 -- information about each 'Volume' using supplied function and initialize it.
 initDomain :: forall m s. (MonadIO m, X.XmlSource s) =>
               (F.FilePath -> m s) -> s -> m Domain
-initDomain f        = modifyM initVols . readDomainXml
+initDomain f        = modifyAA volumeL initVols . readDomainXml
   where
     -- | I need that type-signature, otherwise 'Traversable' constraint of
     -- 'mapM' can't be solved.
@@ -153,14 +155,15 @@ initDomain f        = modifyM initVols . readDomainXml
 -- $utils
 
 -- | Use a function (usually, result of parsing something with 'parseOnly') to
--- construct a final 'endQ' generic query. Note, that if i'll take 'Parser b'
--- here instead of 's -> Either e b', i can't make 'endParserQ' to work on any
--- input, like now. Also with current type i may use 'endOfInput' in specific
--- type parsers, because they're evaluated till the end with 'parseOnly' in
--- their specific functions.
-endParserQ :: (Typeable s, Typeable b, Data a) =>
-              (s -> Either e b) -> GenericRecQ (Endo a, Bool)
-endParserQ p        = endQ $ either mempty (Endo . set) . p
+-- construct a final 'endQ' generic query, which assigns parsed value using
+-- specified 'LensA'. Note, that if i'll take 'Parser b' here instead of 's ->
+-- Either e b', i can't make 'endParserQL' to work on any input, like now.
+-- Also with current type i may use 'endOfInput' in specific type parsers,
+-- because they're evaluated till the end with 'parseOnly' in their specific
+-- functions.
+endParserQL :: Typeable s => LensA a b -> (s -> Either e b)
+               -> GenericRecQ (Endo a, Bool)
+endParserQL l p     = endQ $ either mempty (Endo . setA l) . p
 
 -- | Construct a proper 'Monoid' from a 'FilePath'.
 filePath :: String -> Path

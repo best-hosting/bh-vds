@@ -7,6 +7,7 @@ dependencies: &deps
     - xml
     - syb
     - mtl
+    - transformers
     - system-filepath
     - system-fileio
     - attoparsec
