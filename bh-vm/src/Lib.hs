@@ -18,14 +18,14 @@ import Data.Monoid
 import qualified Data.String as S
 import Control.Monad.Except
 import Filesystem.Path.CurrentOS ((</>), (<.>), basename)
-import Filesystem
+import qualified Filesystem as F
 import qualified Filesystem.Path.CurrentOS as F
 import qualified Data.Map as M
 import Control.Monad.State
 import Data.Yaml.Aeson
 
 import Sgf.Common
-import qualified Sgf.Data.Generics.Lenses as L
+import Sgf.Control.Lens
 import Sgf.System.Libvirt.Types
 import Sgf.System.Libvirt.XML
 import Sgf.System.Libvirt.Template
@@ -115,9 +115,7 @@ mergeConfigs :: Name -> SystemConf -> Domain -> PState
 mergeConfigs dn SystemConf{..} d0 =
     let d = sysDomain <> d0
         vs = map (\v -> (sysVolume <> v){volName = volName sysVolume +++ volName v}) (volume d)
-        --vs' = map (\v -> v{_volName = dn +++ _volName v}) vs
-        vs' = map (\v -> L.modify (dn +++) v) vs
-    --in  PState{domain = d{_name = dn, _volume = vs'}, ipMap = sysIpMap}
+        vs' = map (\v -> modifyA volNameL (dn +++) v) vs
     in  PState{domain = d{name = dn, volume = vs'}, ipMap = sysIpMap}
   where
     (+++) :: Name -> Name -> Name
@@ -168,7 +166,7 @@ work                = do
     liftIO $ T.writeFile "dom-gen.xml" dh
     forM_ (volume d1) $ \v -> do
         vh <- liftVmError $ genVolumeXml v volTmpl
-        liftIO $ writeTextFile (F.fromText ("vol-gen-" <> showt (volName v)) <.> "xml") vh
+        liftIO $ F.writeTextFile (F.fromText ("vol-gen-" <> showt (volName v)) <.> "xml") vh
 
 -- FIXME: Do not assign number, if there is only one 'mempty' volume. Or just
 -- do not assign number to first volume without name.
@@ -210,21 +208,9 @@ defConfig           = Config
 -- T.readFile "../volume.xml" >>= return . (\x -> gmapT (id `extT` volNameT x `extT` volSizeT x) defVolume) . parseXML
 main :: IO ()
 main                = do
-    cd <- T.readFile "../test4-dom.xml"
-    let dom = readDomainXml cd
-        --d = ($ dom) . appEndo $ domVolume vol
-    print dom
-    vs <- forM (volume dom) $ \v -> do
-      let --p  = everything (<|>) (Nothing `mkQ` (Just . _volPath)) dom
-          vf = "../" </> basename (getPath . fromFirst . volPath $ v) <.> "xml"
-      cv <- T.readFile (F.encodeString vf)
-      let vol = readVolumeXml cv
-      print vol
-      return (v <> vol)
-    let dom2 = L.set vs dom
-    print dom2
-    d3 <- initDomain (\p -> T.readFile (F.encodeString ("../" </> basename p <.> "xml"))) cd
-    print (d3 == dom2)
+    d3 <- F.readTextFile "../test4.xml" >>= initDomain (\p -> F.readTextFile $
+            "../" </> F.decodeString (F.encodeString (basename p) <> "-vol") <.> "xml")
+    liftIO $ encodeFile "test4-read.yaml" d3
     {-cv <- T.readFile "../vol.xml"
     let vol2 = readVolumeXml cv
     print vol2-}

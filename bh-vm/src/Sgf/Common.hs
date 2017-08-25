@@ -51,3 +51,9 @@ decodeFileEitherF :: (MonadIO m, FromJSON a) =>
 decodeFileEitherF f = either (\e -> Left (f, e)) Right <$>
                        (liftIO . decodeFileEither . F.encodeString $ f)
 
+toLast :: a -> Last a
+toLast              = Last . Just
+
+toFirst :: a -> First a
+toFirst             = First . Just
+
