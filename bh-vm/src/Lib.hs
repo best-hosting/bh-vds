@@ -21,6 +21,7 @@ import Filesystem.Path.CurrentOS ((</>), (<.>), basename)
 import qualified Filesystem as F
 import qualified Filesystem.Path.CurrentOS as F
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Control.Monad.State
 import Data.Yaml.Aeson
 
@@ -44,9 +45,33 @@ data System         = System {pool :: Text, bridge :: Text}-}
       <> progDesc "Print server name and aliases and php sendmail_path sender address."
       )-}
 
+-- | Read all domains from @virsh@.
+buildDomSet :: MonadIO m => m (S.Set Domain)
+buildDomSet         = virshListAll >>= foldM go S.empty
+  where
+    --go :: S.Set Domain -> Name -> m (S.Set Domain)
+    go zs n         = do
+        c <- virshDumpXml n
+        d <- initDomain virshVolDumpXml c
+        return (S.insert d zs)
+
+-- | @virsh list --all@
+virshListAll :: MonadIO m => m [Name]
+virshListAll        = return ["test4", "test5"]
+
+-- | @virsh dumpxml@
+virshDumpXml :: MonadIO m => Name -> m T.Text
+virshDumpXml n      = liftIO $ T.readFile (F.encodeString $ "../" </> F.fromText (showt n) <.> "xml")
+
+-- | @virsh vol-dumpxml@
+virshVolDumpXml :: MonadIO m => F.FilePath -> m T.Text
+virshVolDumpXml f   = liftIO $ T.readFile ("../" <> F.encodeString (basename f) <> "-vol.xml")
+
+-- | @virsh vol-create@
 virshVolCreate :: (MonadError VmError m, MonadIO m) => Volume -> m ()
 virshVolCreate _    = return ()
 
+-- | @virsh vol-path@
 virshVolPath :: (MonadError VmError m, MonadIO m) => Volume -> m F.FilePath
 virshVolPath v      = return $
                         "/dev" </> F.fromText (showt (fromLast $ volPool v))
@@ -54,12 +79,19 @@ virshVolPath v      = return $
 
 type P a            = StateT PState (ReaderT Config (ExceptT VmError IO)) a
 
-type IPMap          = M.Map IP [Domain]
+type IPMap          = M.Map IP (S.Set Domain)
 
 data PState         = PState {domain :: Domain, ipMap :: IPMap}
   deriving (Show)
 defPState :: PState
 defPState           = PState {domain = mempty, ipMap = mempty}
+
+-- | Add domains from a 'Set' to an 'IPMap'.
+buildIPMap :: IPMap -> S.Set Domain -> IPMap
+buildIPMap z0       = S.fold (\d -> M.insertWith S.union
+                                                 (fromLast (ip d))
+                                                 (S.singleton d))
+                             z0
 
 runP :: P () -> IO ()
 runP mx        = do
@@ -111,13 +143,19 @@ newtype PlanConf    = PlanConf {planDomain :: Domain}
 newtype OsConf      = OsConf {osDomain :: Domain}
   deriving (Show, FromJSON, ToJSON)
 
+-- | Merge 'SystemConf' into initial 'Domain' value.
 mergeConfigs :: Name -> SystemConf -> Domain -> PState
 mergeConfigs dn SystemConf{..} d0 =
+    -- Note, that 'volName' from 'sysDomain' is appended /directly/ (without
+    -- separators) to 'volName' from 'd0'.
     let d = sysDomain <> d0
         d' = d{ name = dn
-              , volume = (sysVolume <> volume d){volName = addVolNames (volume d)}
+              , volume = (sysVolume <> volume d)
+                            {volName = addVolNames (volume d)}
               }
-    in  PState{domain = d', ipMap = sysIpMap}
+    -- I'm interested only in IP addresses. List of domains, which use them,
+    -- i'll rescan later.
+    in  PState{domain = d', ipMap = M.map (const S.empty) sysIpMap}
   where
     addVolNames :: Volume -> Name
     addVolNames v   = dn +++ volName sysVolume +++ volName v
@@ -144,27 +182,42 @@ work                = do
     Config{..} <- ask
 
     -- Set default initial 'Domain' and load available IPs.
-    scf <- liftVmError $ decodeFileEitherF sysConf
+    scf          <- liftVmError $ decodeFileEitherF sysConf
     PlanConf{..} <- liftVmError $ decodeFileEitherF planConf
-    OsConf{..} <- liftVmError $ decodeFileEitherF osConf
-    let ps0 = mergeConfigs domName scf (planDomain <> osDomain)
+    OsConf{..}   <- liftVmError $ decodeFileEitherF osConf
+    let ps0@PState{domain = dom0, ipMap = ipMap0}
+                    = mergeConfigs domName scf (planDomain <> osDomain)
     put ps0
-    PState{domain = dom0, ipMap = ipMap} <- get
-    liftIO $ encodeFile "gen.yaml" dom0
+    liftIO $ encodeFile "dom0.yaml" dom0
+    liftIO $ encodeFile "ipmap0.yaml" scf{sysIpMap = ipMap0}
 
-    PState{domain = d1} <- get
-    d2 <- setVolPath d1
-    liftIO $ print d2
-    modify (\ps -> ps{domain = d2})
+    dset <- buildDomSet
+    let ipm = buildIPMap ipMap0 dset
+        usedIPs = M.filter (not . S.null) ipm
+        freeIPs = M.filter S.null ipm
+    when (M.null freeIPs) $ error "No free IPs."
 
-    d <- gets domain
-    ps1@PState{domain = d3, ipMap = ipMap1} <- get
-    liftIO $ encodeFile "sys-gen.yaml" scf{sysIpMap = ipMap1}
-    liftIO $ encodeFile "dom-gen.yaml" d3
+    dip <- case domIp of
+      Just ip
+        | M.member ip usedIPs    -> error $ "IP already used by "
+                                        ++ show (M.lookup ip usedIPs)
+        | M.notMember ip freeIPs -> error $ "IP is not available. "
+                                        ++ "Add it to 'system.yaml' first."
+        | otherwise -> return ip
+      Nothing   -> return $ head (M.keys freeIPs)
 
-    dh <- liftVmError $ genDomainXml d3 domTmpl
+    d <- setVolPath dom0{ip = toLast dip}
+    modify (\ps -> ps{ domain = d
+                     , ipMap = buildIPMap ipMap0 (S.insert d dset)
+                     })
+
+    gets ipMap  >>= \ipm ->
+                    liftIO $ encodeFile "sys-gen.yaml" scf{sysIpMap = ipm}
+    gets domain >>= liftIO . encodeFile "dom-gen.yaml"
+
+    dh <- liftVmError $ genDomainXml d domTmpl
     liftIO $ T.writeFile "dom-gen.xml" dh
-    let v = volume d3
+    let v = volume d
     vh <- liftVmError $ genVolumeXml v volTmpl
     liftIO $ T.writeFile "vol-gen.xml" vh
 
@@ -202,7 +255,8 @@ defConfig           = Config
                         , domTmpl   = "../dom.xml"
                         , volTmpl   = "../vol.xml"
                         , domName   = "test"
-                        , domIp     = mempty
+                        , domIp     = either (const Nothing) Just $
+                                        parseIP "1.1.1.1"
                         }
 
 -- T.readFile "../volume.xml" >>= return . (\x -> gmapT (id `extT` volNameT x `extT` volSizeT x) defVolume) . parseXML
