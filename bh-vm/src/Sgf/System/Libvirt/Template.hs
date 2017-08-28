@@ -86,6 +86,7 @@ domainLookup Domain{..} n
   | n == "bridge"   = toGVal . showt $ intName (fromLast bridge)
   | n == "ip"       = toGVal . showt $ fromLast ip
   | n == "cdrom"    = toGVal . showt $ fromFirst cdrom
+  | n == "path"     = toGVal . showt $ fromFirst (volPath volume)
   | otherwise       = error . T.unpack $ "No such variable: '" <> n <> "'"
 
 -- | Generate libvirt volume xml using specified 'Volume' value as

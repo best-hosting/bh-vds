@@ -1,7 +1,5 @@
 memory: 1024
 volume:
-    - size: 15
-    - size: 1000
-      name: backup
-      pool: bkppool
+    name: plandom
+    size: 15
 vcpu: 3
