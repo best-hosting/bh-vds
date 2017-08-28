@@ -338,7 +338,7 @@ data Domain         = Domain
                         , memory    :: Last Size
                         , vcpu      :: Last VCpu
                         , cdrom     :: First Path
-                        , volume    :: [Volume]
+                        , volume    :: Volume
                         , bridge    :: Last Interface
                         , ip        :: Last IP
                         }
@@ -354,7 +354,7 @@ vcpuL :: LensA Domain (Last VCpu)
 vcpuL   f z@Domain {vcpu = x}   = fmap (\x' -> z{vcpu = x'}) (f x)
 cdromL :: LensA Domain (First Path)
 cdromL  f z@Domain {cdrom = x}  = fmap (\x' -> z{cdrom = x'}) (f x)
-volumeL :: LensA Domain [Volume]
+volumeL :: LensA Domain Volume
 volumeL f z@Domain {volume = x} = fmap (\x' -> z{volume = x'}) (f x)
 bridgeL :: LensA Domain (Last Interface)
 bridgeL f z@Domain {bridge = x} = fmap (\x' -> z{bridge = x'}) (f x)

@@ -104,7 +104,7 @@ domDevices x
   | elN "disk" x && elAttrQN (qn "device") "cdrom" x = next $
                           sourceFileXml (Endo . setA cdromL . toFirst . filePath)
   | elN "disk" x && elAttrQN (qn "device") "disk" x  = next $
-                          sourceDevXml (\y -> Endo $ modifyA volumeL (volDisk y :))
+                          sourceDevXml (\y -> Endo $ setA volumeL (volDisk y))
   | otherwise           = stop mempty
   where
     volDisk :: String -> Volume
@@ -139,18 +139,18 @@ initDomain f        = modifyAA volumeL initVols . readDomainXml
   where
     -- | I need that type-signature, otherwise 'Traversable' constraint of
     -- 'mapM' can't be solved.
-    initVols :: [Volume] -> m [Volume]
-    initVols        = mapM $ \v -> case getFirst (volPath v) of
-                        Nothing -> return v
-                        Just p  -> do
-                            vx <- f (getPath p)
-                            let v'  = readVolumeXml vx
-                                vv' =  v <> v'
-                            if vv' /= v' <> v
-                              then error $ "Volume info does not match to domain.\n"
-                                    ++ "Read volume: " ++ show v' ++ "\n"
-                                    ++ "Domain's volume: " ++ show v
-                              else return vv'
+    initVols :: Volume -> m Volume
+    initVols v
+      | Just p  <- getFirst (volPath v) = do
+            vx <- f (getPath p)
+            let v'  = readVolumeXml vx
+                vv' =  v <> v'
+            if vv' /= v' <> v
+              then error $ "Volume info does not match to domain.\n"
+                    ++ "Read volume: " ++ show v' ++ "\n"
+                    ++ "Domain's volume: " ++ show v
+              else return vv'
+      | otherwise   = return v
 
 -- $utils
 

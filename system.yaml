@@ -4,7 +4,7 @@ ipmap:
   3.3.3.3: []
 volume:
   pool: syspool
-  name: vds
+  name: sysvol
   size: 3
   path: /dev/vds
 domain:
@@ -12,5 +12,5 @@ domain:
   vcpu: 1
   memory: 512
   volume:
-  - name: boot
+    name: sysdom
     size: 5

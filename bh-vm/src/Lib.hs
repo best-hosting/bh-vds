@@ -114,10 +114,13 @@ newtype OsConf      = OsConf {osDomain :: Domain}
 mergeConfigs :: Name -> SystemConf -> Domain -> PState
 mergeConfigs dn SystemConf{..} d0 =
     let d = sysDomain <> d0
-        vs = map (\v -> (sysVolume <> v){volName = volName sysVolume +++ volName v}) (volume d)
-        vs' = map (\v -> modifyA volNameL (dn +++) v) vs
-    in  PState{domain = d{name = dn, volume = vs'}, ipMap = sysIpMap}
+        d' = d{ name = dn
+              , volume = (sysVolume <> volume d){volName = addVolNames (volume d)}
+              }
+    in  PState{domain = d', ipMap = sysIpMap}
   where
+    addVolNames :: Volume -> Name
+    addVolNames v   = dn +++ volName sysVolume +++ volName v
     (+++) :: Name -> Name -> Name
     x +++ y         = maybeSep "-" x y
 
@@ -131,12 +134,10 @@ maybeSep s x y
 
 setVolPath :: (MonadError VmError m, MonadIO m) => Domain -> m Domain
 setVolPath d        = do
-    vs' <- forM (volume d) $ \v -> do
-        virshVolCreate v
-        p <- virshVolPath v
-        return v{volPath = pure (Path p)}
-    liftIO $ print vs'
-    return d{volume = vs'}
+    let v = volume d
+    virshVolCreate v
+    p <- virshVolPath v
+    return d{volume = v{volPath = pure (Path p)}}
 
 work :: P ()
 work                = do
@@ -157,16 +158,15 @@ work                = do
     modify (\ps -> ps{domain = d2})
 
     d <- gets domain
-    liftIO $ encodeFile "gen.yaml" d
     ps1@PState{domain = d3, ipMap = ipMap1} <- get
     liftIO $ encodeFile "sys-gen.yaml" scf{sysIpMap = ipMap1}
     liftIO $ encodeFile "dom-gen.yaml" d3
 
-    dh <- liftVmError $ genDomainXml d1 domTmpl
+    dh <- liftVmError $ genDomainXml d3 domTmpl
     liftIO $ T.writeFile "dom-gen.xml" dh
-    forM_ (volume d1) $ \v -> do
-        vh <- liftVmError $ genVolumeXml v volTmpl
-        liftIO $ F.writeTextFile (F.fromText ("vol-gen-" <> showt (volName v)) <.> "xml") vh
+    let v = volume d3
+    vh <- liftVmError $ genVolumeXml v volTmpl
+    liftIO $ T.writeFile "vol-gen.xml" vh
 
 -- FIXME: Do not assign number, if there is only one 'mempty' volume. Or just
 -- do not assign number to first volume without name.
