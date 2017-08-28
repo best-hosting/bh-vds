@@ -1,2 +1,4 @@
 .stack-work/
 bh-vm.cabal
+*.tmp
+[0-9].*

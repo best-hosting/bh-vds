@@ -134,7 +134,6 @@ instance ToJSON Size where
 -- | 'FilePath' 'Monoid' instance is wrong (it does not satisfy 'Monoid'
 -- laws), thus i need a wrapper to fix it. See
 -- https://github.com/fpco/haskell-filesystem/issues/19 .
--- FIXME: Remove 'Path' and just export corresponding lens.
 newtype Path        = Path {getPath :: F.FilePath}
   deriving (Show, Typeable, Data, Eq, Ord)
 
