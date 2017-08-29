@@ -72,22 +72,27 @@ genXml scope src    = do
 -- | Context lookup function using 'Volume' as a source.
 volumeLookup :: Monad m => Volume -> VarName -> GVal m
 volumeLookup Volume{..} n
-  | n == "name"     = toGVal . showt $ volName
-  | n == "size"     = toGVal . showt $ fromLast volSize
+  | n == "name"     = notEmptyGVal n volName
+  | n == "size"     = notEmptyGVal n (fromLast volSize)
   | otherwise       = error . T.unpack $ "No such variable: '" <> n <> "'"
 
 -- | Context lookup function using 'Domain' as a source.
 domainLookup :: Monad m => Domain -> VarName -> GVal m
 domainLookup Domain{..} n
-  | n == "name"     = toGVal . showt $ name
-  | n == "arch"     = toGVal . showt $ arch
-  | n == "memory"   = toGVal . showt $ fromLast memory
-  | n == "vcpu"     = toGVal . showt $ fromLast vcpu
-  | n == "bridge"   = toGVal . showt $ intName (fromLast bridge)
-  | n == "ip"       = toGVal . showt $ fromLast ip
-  | n == "cdrom"    = toGVal . showt $ fromFirst cdrom
-  | n == "path"     = toGVal . showt $ fromFirst (volPath volume)
+  | n == "name"     = notEmptyGVal n name
+  | n == "arch"     = notEmptyGVal n arch
+  | n == "memory"   = notEmptyGVal n (fromLast memory)
+  | n == "vcpu"     = notEmptyGVal n (fromLast vcpu)
+  | n == "bridge"   = notEmptyGVal n (intName (fromLast bridge))
+  | n == "ip"       = notEmptyGVal n (fromLast ip)
+  | n == "cdrom"    = notEmptyGVal n (fromFirst cdrom)
+  | n == "path"     = notEmptyGVal n (fromFirst (volPath volume))
   | otherwise       = error . T.unpack $ "No such variable: '" <> n <> "'"
+
+notEmptyGVal :: (Eq a, Monoid a, TextShow a) => VarName -> a -> GVal m
+notEmptyGVal n x
+  | x == mempty     = error . T.unpack $ "Variable '" <> n <> "' is empty."
+  | otherwise       = toGVal . showt $ x
 
 -- | Generate libvirt volume xml using specified 'Volume' value as
 -- 'GingerContext' lookup source.
