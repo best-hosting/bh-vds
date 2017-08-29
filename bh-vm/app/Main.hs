@@ -1,17 +1,26 @@
+{-# LANGUAGE CPP                #-}
 {-# LANGUAGE OverloadedStrings  #-}
 
 module Main where
 
 import Data.Monoid
 import qualified Data.Text as T
-import qualified Options.Applicative as A
-import Filesystem.Path.CurrentOS ((</>), (<.>), basename)
+import Options.Applicative
+import Development.Shake (FilePattern, (?==))
+import System.FilePath
 import qualified Filesystem.Path.CurrentOS as F
-import Control.Applicative
 import Control.Monad
 
 import Lib
+import Pathes
 import Sgf.System.Libvirt.Types
+
+#if LOCAL
+prefix :: FilePath
+prefix              = ".."
+#else
+import Build.Pathes (prefix)
+#endif
 
 
 -- Read system values and cmd.
@@ -39,52 +48,66 @@ import Sgf.System.Libvirt.Types
 -- pool (name it default). Then i may omit system config altogether.
 
 
-configPath :: F.FilePath
-configPath          = "../"
-
-presetConfPath, osConfPath, sysConfPath, tmplPath :: F.FilePath -> F.FilePath
-presetConfPath  x   = configPath </> "preset"   </> x <.> "yaml"
-osConfPath      x   = configPath </> "os"       </> x <.> "yaml"
-sysConfPath     x   = configPath                </> x
-tmplPath        x   = configPath </> "template" </> x <.> "xml"
+-- | Use matcher function to match against supplied 'String' and, if match
+-- suceeded, return full path to config file with that name. Note, that file
+-- existence is _not_ checked.
+matchConf :: (F.FilePath -> (F.FilePath, [FilePattern]))
+             -> String -> Either String F.FilePath
+matchConf f t       = let (d, ps) = f (F.decodeString prefix) in
+    case foldr go ([], []) ps of
+        ([r], _)    -> Right (d F.</> r)
+        ([] , [w])  -> Right (d F.</> w)
+        ([] , [])   -> Left $ "Not a valid plan name: " ++ t
+        (rs , ws)   -> Left $ "More, than one pattern matches: "
+                                ++ show rs ++ ", " ++ show ws
+  where
+    -- | Try to match string against entire 'FilePattern' or only against its
+    -- basename.
+    go :: FilePattern
+          -> ([F.FilePath], [F.FilePath]) -> ([F.FilePath], [F.FilePath])
+    go p (zs, ws)   =
+        ( if p ?== t then F.decodeString t : zs else zs
+        , if takeBaseName p ?== t
+                     then F.decodeString (t <.> takeExtension p) : ws else ws
+        )
 
 -- | Command-line options.
-options :: A.Parser Config
+options :: Parser Config
 options             = Config
-    <$> A.option (A.eitherReader (pure . presetConfPath . F.decodeString))
-            (   A.long "preset"
-            <>  A.short 'p'
-            <>  A.metavar "PRESET"
-            <>  A.help "Name of preset to use."
+    <$> option (eitherReader (matchConf planConfFilePat))
+            (   long "plan"
+            <>  short 'p'
+            <>  metavar "PLAN"
+            <>  help "Name of plan to use."
             )
-    <*> pure (sysConfPath "system.yaml")
-    <*> A.option (A.eitherReader (pure . osConfPath . F.decodeString))
-            (   A.long "os"
-            <>  A.short 'o'
-            <>  A.metavar "OS"
-            <>  A.help "Name of OS to use."
+    <*> either error pure (matchConf sysConfFilePat "system")
+    <*> option (eitherReader (matchConf osConfFilePat))
+            (   long "os"
+            <>  short 'o'
+            <>  metavar "OS"
+            <>  help "Name of OS to use."
             )
-    <*> pure (tmplPath "dom")
-    <*> pure (tmplPath "vol")
-    <*>  A.option (A.eitherReader (parseName . T.pack))
-            (   A.long "name"
-            <>  A.short 'n'
-            <>  A.metavar "NAME"
-            <>  A.help "New vm name."
+    <*> either error pure (matchConf tmplConfFilePat "dom")
+    <*> either error pure (matchConf tmplConfFilePat "vol")
+    <*> option (eitherReader (parseName . T.pack))
+            (   long "name"
+            <>  short 'n'
+            <>  metavar "NAME"
+            <>  help "New vm name."
             )
-    <*> (A.option (A.eitherReader (fmap Just . parseIP . T.pack))
-            (   A.long "ip"
-            <>  A.short 'i'
-            <>  A.metavar "IP"
-            <>  A.help "IP address for new vm."
+    <*> (option (eitherReader (fmap Just . parseIP . T.pack))
+            (   long "ip"
+            <>  short 'i'
+            <>  metavar "IP"
+            <>  help "IP address for new vm."
             )
         <|> pure Nothing)
 
 main :: IO ()
-main                = join . A.execParser $
-    A.info (A.helper <*> (runP <$> options <*> pure work))
-    (  A.fullDesc
-    <> A.header "General program title/description"
-    <> A.progDesc "What does this thing do?"
+main                = join . execParser $
+    info (helper <*> (runP <$> options <*> pure work))
+    (  fullDesc
+    <> header "General program title/description"
+    <> progDesc "What does this thing do?"
     )
 
