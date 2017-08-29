@@ -1,0 +1,2 @@
+arch: "x86_64"
+cdrom: "/var/lib/libvirt/ubuntu.iso"

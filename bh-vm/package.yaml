@@ -31,3 +31,11 @@ library:
     source-dirs: src
     <<: *ghc-opts
 
+executables:
+    bh-vm:
+        source-dirs: app
+        <<: *deps
+        dependencies:
+            - bh-vm
+        main: Main.hs
+

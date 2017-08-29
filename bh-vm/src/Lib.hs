@@ -4,21 +4,22 @@
 {-# LANGUAGE RecordWildCards    #-}
 
 module Lib
+    ( work
+    , P
+    , runP
+    , Config (..)
+    )
   where
 
 import Data.Maybe
 import Prelude      hiding (FilePath)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
---import Options.Applicative
-import Control.Applicative
 import TextShow
 import Control.Monad.Reader
 import Data.Monoid
 import qualified Data.String as S
 import Control.Monad.Except
-import Filesystem.Path.CurrentOS ((</>), (<.>), basename)
-import qualified Filesystem as F
 import qualified Filesystem.Path.CurrentOS as F
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -26,24 +27,11 @@ import Control.Monad.State
 import Data.Yaml.Aeson
 
 import Sgf.Common
-import Sgf.Control.Lens
 import Sgf.System.Libvirt.Types
 import Sgf.System.Libvirt.XML
 import Sgf.System.Libvirt.Template
+import Sgf.System.Libvirt.Operations
 
-
-{-data Plan           = Plan {size :: Int, memory :: Int, cpu :: Int}
-data Template       = Template {cdrom :: FilePath}
-data System         = System {pool :: Text, bridge :: Text}-}
-
-
-
-{-
-    join . execParser $ info (helper <*> (work <$> opts))
-      ( fullDesc
-      <> header "Print server name and sendmail_path sender address."
-      <> progDesc "Print server name and aliases and php sendmail_path sender address."
-      )-}
 
 -- | Read all domains from @virsh@.
 buildDomSet :: MonadIO m => m (S.Set Domain)
@@ -55,27 +43,6 @@ buildDomSet         = virshListAll >>= foldM go S.empty
         d <- initDomain virshVolDumpXml c
         return (S.insert d zs)
 
--- | @virsh list --all@
-virshListAll :: MonadIO m => m [Name]
-virshListAll        = return ["test4", "test5"]
-
--- | @virsh dumpxml@
-virshDumpXml :: MonadIO m => Name -> m T.Text
-virshDumpXml n      = liftIO $ T.readFile (F.encodeString $ "../" </> F.fromText (showt n) <.> "xml")
-
--- | @virsh vol-dumpxml@
-virshVolDumpXml :: MonadIO m => F.FilePath -> m T.Text
-virshVolDumpXml f   = liftIO $ T.readFile ("../" <> F.encodeString (basename f) <> "-vol.xml")
-
--- | @virsh vol-create@
-virshVolCreate :: (MonadError VmError m, MonadIO m) => Volume -> m ()
-virshVolCreate _    = return ()
-
--- | @virsh vol-path@
-virshVolPath :: (MonadError VmError m, MonadIO m) => Volume -> m F.FilePath
-virshVolPath v      = return $
-                        "/dev" </> F.fromText (showt (fromLast $ volPool v))
-                               </> F.fromText (showt (volName v))
 
 type P a            = StateT PState (ReaderT Config (ExceptT VmError IO)) a
 
@@ -93,11 +60,11 @@ buildIPMap z0       = S.fold (\d -> M.insertWith S.union
                                                  (S.singleton d))
                              z0
 
-runP :: P () -> IO ()
-runP mx        = do
-    r <- runExceptT . flip runReaderT defConfig . flip runStateT defPState $ mx
+runP :: Config -> P () -> IO ()
+runP cf mx          = do
+    r <- runExceptT . flip runReaderT cf . flip runStateT defPState $ mx
     liftIO $ case r of
-      Left (XmlGenError pe) -> printParserError loadFile pe >>= putStrLn
+      Left (XmlGenError pe)     -> printParserError loadFile pe >>= putStrLn
       Left (YamlParseError f pe) -> putStrLn $
         "Yaml parse error in file '" ++ F.encodeString f ++ "':\n"
             ++ prettyPrintParseException pe
@@ -138,7 +105,7 @@ writeIPMap m    = M.foldrWithKey go M.empty m
     go x d zm   = M.insert (showt x) d zm
 
 -- | Domain settings required by a plan.
-newtype PlanConf    = PlanConf {planDomain :: Domain}
+newtype PresetConf  = PresetConf {presetDomain :: Domain}
   deriving (Show, FromJSON, ToJSON)
 newtype OsConf      = OsConf {osDomain :: Domain}
   deriving (Show, FromJSON, ToJSON)
@@ -183,10 +150,10 @@ work                = do
 
     -- Set default initial 'Domain' and load available IPs.
     scf          <- liftVmError $ decodeFileEitherF sysConf
-    PlanConf{..} <- liftVmError $ decodeFileEitherF planConf
+    PresetConf{..} <- liftVmError $ decodeFileEitherF planConf
     OsConf{..}   <- liftVmError $ decodeFileEitherF osConf
     let ps0@PState{domain = dom0, ipMap = ipMap0}
-                    = mergeConfigs domName scf (planDomain <> osDomain)
+                    = mergeConfigs domName scf (presetDomain <> osDomain)
     put ps0
     liftIO $ encodeFile "dom0.yaml" dom0
     liftIO $ encodeFile "ipmap0.yaml" scf{sysIpMap = ipMap0}
@@ -211,8 +178,8 @@ work                = do
                      , ipMap = buildIPMap ipMap0 (S.insert d dset)
                      })
 
-    gets ipMap  >>= \ipm ->
-                    liftIO $ encodeFile "sys-gen.yaml" scf{sysIpMap = ipm}
+    gets ipMap  >>= \im ->
+                    liftIO $ encodeFile "sys-gen.yaml" scf{sysIpMap = im}
     gets domain >>= liftIO . encodeFile "dom-gen.yaml"
 
     dh <- liftVmError $ genDomainXml d domTmpl
@@ -258,14 +225,4 @@ defConfig           = Config
                         , domIp     = either (const Nothing) Just $
                                         parseIP "1.1.1.1"
                         }
-
--- T.readFile "../volume.xml" >>= return . (\x -> gmapT (id `extT` volNameT x `extT` volSizeT x) defVolume) . parseXML
-main :: IO ()
-main                = do
-    d3 <- F.readTextFile "../test4.xml" >>= initDomain (\p -> F.readTextFile $
-            "../" </> F.decodeString (F.encodeString (basename p) <> "-vol") <.> "xml")
-    liftIO $ encodeFile "test4-read.yaml" d3
-    {-cv <- T.readFile "../vol.xml"
-    let vol2 = readVolumeXml cv
-    print vol2-}
 
