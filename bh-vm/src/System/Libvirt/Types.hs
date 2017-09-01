@@ -4,7 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards            #-}
 
-module Sgf.System.Libvirt.Types
+module System.Libvirt.Types
     ( Name
     , parseName
     , Size

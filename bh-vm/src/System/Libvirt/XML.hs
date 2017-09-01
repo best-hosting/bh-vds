@@ -4,7 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes         #-}
 
-module Sgf.System.Libvirt.XML
+module System.Libvirt.XML
     ( volumeXml
     , readVolumeXml
 
@@ -25,7 +25,7 @@ import qualified Filesystem.Path.CurrentOS as F
 
 import Sgf.Common
 import Sgf.Control.Lens
-import Sgf.System.Libvirt.Types
+import System.Libvirt.Types
 import Sgf.Data.Generics.Aliases
 import Sgf.Data.Generics.Schemes
 import Sgf.Text.XML.Light.Proc

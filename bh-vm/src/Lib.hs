@@ -27,10 +27,10 @@ import Control.Monad.State
 import Data.Yaml.Aeson
 
 import Sgf.Common
-import Sgf.System.Libvirt.Types
-import Sgf.System.Libvirt.XML
-import Sgf.System.Libvirt.Template
-import Sgf.System.Libvirt.Operations
+import System.Libvirt.Types
+import System.Libvirt.XML
+import System.Libvirt.Template
+import System.Libvirt.Operations
 
 
 -- | Read all domains from @virsh@.

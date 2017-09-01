@@ -13,7 +13,7 @@ import Control.Monad
 
 import Lib
 import Pathes
-import Sgf.System.Libvirt.Types
+import System.Libvirt.Types
 
 #if LOCAL
 prefix :: FilePath

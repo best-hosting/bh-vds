@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE RecordWildCards        #-}
 
-module Sgf.System.Libvirt.Template
+module System.Libvirt.Template
     ( showParserError
     , printParserError
     , loadFile
@@ -25,7 +25,7 @@ import qualified Filesystem.Path.CurrentOS as F
 import Control.Monad.Writer
 
 import Sgf.Common
-import Sgf.System.Libvirt.Types
+import System.Libvirt.Types
 
 
 -- | Convert 'ParserError' to an error message.
