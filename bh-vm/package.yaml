@@ -30,17 +30,25 @@ _exe-ghc-opts: &exe-ghc-opts
 
 flags:
     local:
-        description:    "Do not install, prepare for running locally."
+        description:    "Prepare for running locally."
         default:        False
         manual:         True
 
 library:
     source-dirs: src
     <<: *ghc-opts
+    exposed-modules:
+        - System.Libvirt.Operations
+        - System.Libvirt.Template
+        - System.Libvirt.Types
+        - System.Libvirt.XML
+        - BH.System.Libvirt.Types
+        - BH.System.Libvirt
 
 executables:
     bh-vm:
-        source-dirs: app
+        source-dirs:
+            - app
         <<: *deps
         dependencies:
             - filepath
@@ -51,7 +59,8 @@ executables:
             cpp-options: -DLOCAL
 
     build:
-        source-dirs: app
+        source-dirs:
+            - app
         <<: *deps
         dependencies:
             - shake
