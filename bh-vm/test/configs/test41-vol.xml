@@ -1,0 +1,24 @@
+<volume type='block'>
+  <name>test41</name>
+  <key>BRRRRRRR</key>
+  <source>
+    <device path='/dev/md1'>
+      <extent start='22998832' end='496192'/>
+    </device>
+  </source>
+  <capacity unit='bytes'>6127360</capacity>
+  <target>
+    <path>/dev/vds/test41</path>
+    <permissions>
+      <mode>0600</mode>
+      <owner>0</owner>
+      <group>6</group>
+    </permissions>
+    <timestamps>
+      <atime>1498830599.764533873</atime>
+      <mtime>1498830599.764533873</mtime>
+      <ctime>1498830599.764533873</ctime>
+    </timestamps>
+  </target>
+</volume>
+

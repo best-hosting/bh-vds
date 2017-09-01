@@ -216,7 +216,7 @@ data Config         = Config
 
 defConfig :: Config
 defConfig           = Config
-                        { planConfFile    = "../plan.yaml"
+                        { planConfFile  = "../plan.yaml"
                         , sysConfFile   = "../system.yaml"
                         , osConfFile    = "../os.yaml"
                         , domTmplFile   = "../dom.xml"
