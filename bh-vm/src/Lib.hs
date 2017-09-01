@@ -105,7 +105,7 @@ writeIPMap m    = M.foldrWithKey go M.empty m
     go x d zm   = M.insert (showt x) d zm
 
 -- | Domain settings required by a plan.
-newtype PresetConf  = PresetConf {presetDomain :: Domain}
+newtype PlanConf  = PlanConf {planDomain :: Domain}
   deriving (Show, FromJSON, ToJSON)
 newtype OsConf      = OsConf {osDomain :: Domain}
   deriving (Show, FromJSON, ToJSON)
@@ -149,11 +149,11 @@ work                = do
     Config{..} <- ask
 
     -- Set default initial 'Domain' and load available IPs.
-    scf          <- liftVmError $ decodeFileEitherF sysConf
-    PresetConf{..} <- liftVmError $ decodeFileEitherF planConf
-    OsConf{..}   <- liftVmError $ decodeFileEitherF osConf
+    scf          <- liftVmError $ decodeFileEitherF sysConfFile
+    PlanConf{..} <- liftVmError $ decodeFileEitherF planConfFile
+    OsConf{..}   <- liftVmError $ decodeFileEitherF osConfFile
     let ps0@PState{domain = dom0, ipMap = ipMap0}
-                    = mergeConfigs domName scf (presetDomain <> osDomain)
+                    = mergeConfigs domName scf (planDomain <> osDomain)
     put ps0
     liftIO $ encodeFile "dom0.yaml" dom0
     liftIO $ encodeFile "ipmap0.yaml" scf{sysIpMap = ipMap0}
@@ -182,10 +182,10 @@ work                = do
                     liftIO $ encodeFile "sys-gen.yaml" scf{sysIpMap = im}
     gets domain >>= liftIO . encodeFile "dom-gen.yaml"
 
-    dh <- liftVmError $ genDomainXml d domTmpl
+    dh <- liftVmError $ genDomainXml d domTmplFile
     liftIO $ T.writeFile "dom-gen.xml" dh
     let v = volume d
-    vh <- liftVmError $ genVolumeXml v volTmpl
+    vh <- liftVmError $ genVolumeXml v volTmplFile
     liftIO $ T.writeFile "vol-gen.xml" vh
 
 -- FIXME: Do not assign number, if there is only one 'mempty' volume. Or just
@@ -204,25 +204,25 @@ noEmptyName n v
     toName          = either (const mempty) id . parseName
 
 data Config         = Config
-                        { planConf  :: F.FilePath
-                        , sysConf   :: F.FilePath
-                        , osConf    :: F.FilePath
-                        , domTmpl   :: F.FilePath
-                        , volTmpl   :: F.FilePath
-                        , domName   :: Name
-                        , domIp     :: Maybe IP
+                        { planConfFile  :: F.FilePath
+                        , sysConfFile   :: F.FilePath
+                        , osConfFile    :: F.FilePath
+                        , domTmplFile   :: F.FilePath
+                        , volTmplFile   :: F.FilePath
+                        , domName       :: Name
+                        , domIp         :: Maybe IP
                         }
   deriving (Show)
 
 defConfig :: Config
 defConfig           = Config
-                        { planConf  = "../plan.yaml"
-                        , sysConf   = "../system.yaml"
-                        , osConf    = "../os.yaml"
-                        , domTmpl   = "../dom.xml"
-                        , volTmpl   = "../vol.xml"
-                        , domName   = "test"
-                        , domIp     = either (const Nothing) Just $
-                                        parseIP "1.1.1.1"
+                        { planConfFile  = "../plan.yaml"
+                        , sysConfFile   = "../system.yaml"
+                        , osConfFile    = "../os.yaml"
+                        , domTmplFile   = "../dom.xml"
+                        , volTmplFile   = "../vol.xml"
+                        , domName       = "test"
+                        , domIp         = either (const Nothing) Just $
+                                            parseIP "1.1.1.1"
                         }
 

@@ -1,0 +1,26 @@
+<volume type='block'>
+  <name>test4</name>
+  <key>6TsBf0-GGkL-ZqCs-1btK-3BLg-NntB-MbdHDh</key>
+  <source>
+    <device path='/dev/md1'>
+      <extent start='22997368832' end='39103496192'/>
+    </device>
+  </source>
+  <capacity unit='bytes'>16106127360</capacity>
+  <allocation unit='bytes'>16106127360</allocation>
+  <physical unit='bytes'>16106127360</physical>
+  <target>
+    <path>/dev/vds/test4</path>
+    <permissions>
+      <mode>0600</mode>
+      <owner>0</owner>
+      <group>6</group>
+    </permissions>
+    <timestamps>
+      <atime>1498830599.764533873</atime>
+      <mtime>1498830599.764533873</mtime>
+      <ctime>1498830599.764533873</ctime>
+    </timestamps>
+  </target>
+</volume>
+

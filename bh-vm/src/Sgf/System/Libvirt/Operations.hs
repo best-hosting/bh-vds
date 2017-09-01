@@ -22,11 +22,11 @@ virshListAll        = return ["test4", "test5"]
 -- | @virsh dumpxml@
 virshDumpXml :: MonadIO m => Name -> m T.Text
 virshDumpXml n      = liftIO . T.readFile . F.encodeString $
-                        "../" </> F.fromText (showt n) <.> "xml"
+                        "./test/configs" </> F.fromText (showt n) <.> "xml"
 
 -- | @virsh vol-dumpxml@
 virshVolDumpXml :: MonadIO m => F.FilePath -> m T.Text
-virshVolDumpXml f   = liftIO $ T.readFile ("../" <> F.encodeString (basename f) <> "-vol.xml")
+virshVolDumpXml f   = liftIO $ T.readFile ("./test/configs/" <> F.encodeString (basename f) <> "-vol.xml")
 
 -- | @virsh vol-create@
 virshVolCreate :: (MonadError VmError m, MonadIO m) => Volume -> m ()
