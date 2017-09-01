@@ -2,6 +2,7 @@
 
 import Data.List
 import Development.Shake
+import Control.Monad
 import System.FilePath
 import System.Console.GetOpt
 import qualified Filesystem.Path.CurrentOS as F
@@ -11,9 +12,6 @@ import Pathes
 -- | Source directory with configs.
 srcConfDir :: FilePath
 srcConfDir  = ".." </> "configs"
--- | Source directory with binaries.
-srcBinDir :: FilePath
-srcBinDir   = "." </> ".stack-work/install/i386-linux/lts-8.24/8.0.2/bin"
 
 -- | Replace path prefix @old@ (starting and ending at path component
 -- boundaries) with @new@, if matched:
@@ -133,7 +131,11 @@ build op@Options{..} args       = do
         copyFile' (replacePrefix (sysconfdir op) srcConfDir dst) dst
 
     -- Install binary files.
-    bindir op ++ "//*" %> \dst ->
+    bindir op ++ "//*" %> \dst -> do
+        Stdout stackInstallRoot <- cmd "stack path --local-install-root"
+        when (null stackInstallRoot) $
+            error "Can't find stack local install root."
+        let srcBinDir = takeWhile (/= '\n') stackInstallRoot </> "bin"
         copyFile' (replacePrefix (bindir op) srcBinDir dst) dst
   where
     -- | Find config files and 'need' them.
