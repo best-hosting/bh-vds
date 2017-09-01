@@ -31,14 +31,15 @@ replacePrefix old new x  = maybe x (combine new . joinPath) $
 data Options =
     Options
         { -- | Prefix path used to construct all others pathes.
-          _prefix        :: FilePath
+          _prefix       :: FilePath
         -- | Prefix path used to construct '_bindir'. If it's empty, '_prefix'
         -- will be used.
-        , _execPrefix :: FilePath
+        , _execPrefix   :: FilePath
         -- | Directory for installing binary files.
-        , _bindir        :: FilePath
+        , _bindir       :: FilePath
         -- | Directory for installing config files.
-        , _sysconfdir    :: FilePath
+        , _sysconfdir   :: FilePath
+        , _flags        :: [String]
         }
   deriving (Show)
 
@@ -50,6 +51,7 @@ defOptions          =
         , _execPrefix   = ""
         , _bindir       = "bin"
         , _sysconfdir   = "etc" </> "bh-vm"
+        , _flags        = []
         }
 
 -- | Construct full config installation path by applying '_sysconfdir' to
@@ -86,11 +88,17 @@ opts                =
         ("Config files installation directory under prefix."
             ++ " '--prefix' is prepended to this path."
             ++ " Default: '" ++ sysconfdir defOptions ++ "'.")
+    , Option [] ["flag"]
+        (ReqArg (\x -> Right (\op -> op{_flags = x : _flags op})) "FLAG")
+        "Pass flags to `stack`."
     ]
 
 -- | Build rules.
 build :: Options -> [String] -> Rules ()
 build op@Options{..} args       = do
+    let flags = if null _flags
+                    then []
+                    else "--flag" : intersperse "--flag" _flags
     if null args
       then want ["all"]
       else want args
@@ -107,7 +115,7 @@ build op@Options{..} args       = do
 
     "build"     ~> do
         need ["src/Build/Pathes.hs"]
-        cmd "stack build"
+        cmd "stack build" flags
 
     "clean"     ~> do
         liftIO $ removeFiles "src/Build" ["//"]
