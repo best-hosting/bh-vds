@@ -1,19 +1,25 @@
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE FlexibleContexts   #-}
 
+-- |
+-- Module: System.Libvirt.Operations
+--
+-- Different basic `libvirt` operations (implemented as calls to `virsh`).
+
 module System.Libvirt.Operations
   where
 
-import Data.Monoid
+import           Data.Monoid
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import Filesystem.Path.CurrentOS ((</>), (<.>), basename)
+import           Filesystem.Path.CurrentOS ((</>), (<.>), basename)
 import qualified Filesystem.Path.CurrentOS as F
-import TextShow
-import Control.Monad.Except
+import           TextShow
+import           Control.Monad.Except
 
-import System.Libvirt.Types
-import Internal.Common
+import           System.Libvirt.Types
+
+import           Internal.Common
 
 
 -- | @virsh list --all@

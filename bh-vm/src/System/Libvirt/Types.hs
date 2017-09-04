@@ -4,6 +4,10 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards            #-}
 
+-- |
+-- Module: System.Libvirt.Types
+--
+
 module System.Libvirt.Types
     ( Name
     , parseName
@@ -36,26 +40,25 @@ module System.Libvirt.Types
 
     , VmError (..)
     , toVmError
-    , toVmErrorM
     , liftVmError
     )
   where
 
-import Data.Maybe
-import qualified Data.String as S
-import Data.Monoid
-import Data.Generics
-import qualified Text.Ginger as G
-import Data.Yaml.Aeson
-import Data.Aeson.Types
-import qualified Data.Attoparsec.Text as A
-import qualified Data.Text as T
-import TextShow
-import Control.Applicative
-import Control.Monad.Except
-import qualified Filesystem.Path.CurrentOS as F
+import           Data.Maybe
+import qualified Data.String                as S
+import           Data.Monoid
+import           Data.Generics
+import qualified Text.Ginger                as G
+import           Data.Yaml.Aeson
+import           Data.Aeson.Types
+import qualified Data.Attoparsec.Text       as A
+import qualified Data.Text                  as T
+import           TextShow
+import           Control.Applicative
+import           Control.Monad.Except
+import qualified Filesystem.Path.CurrentOS  as F
 
-import Internal.Control.Lens
+import           Internal.Control.Lens
 
 
 -- | Type for names. Use 'parseName' for converting from text and 'showt' for
@@ -82,8 +85,6 @@ instance ToJSON Name where
 
 -- | Type for sizes. Use 'parseSize' for converting from text, 'fromInteger'
 -- for converting from a number and 'toInteger' for converting to a number.
--- Not all 'Integer's are valid 'Size's, thus i don't provide lens
--- 'LensA Size Integer', because such lens will break lens laws.
 newtype Size        = Size {getSize :: Sum Integer}
   deriving (Show, Typeable, Data, Eq, Ord, Monoid)
 
@@ -131,9 +132,9 @@ instance FromJSON Size where
 instance ToJSON Size where
     toJSON          = toJSON . toInteger
 
--- | 'FilePath' 'Monoid' instance is wrong (it does not satisfy 'Monoid'
+-- | 'F.FilePath' 'Monoid' instance is wrong (it does not satisfy 'Monoid'
 -- laws), thus i need a wrapper to fix it. See
--- https://github.com/fpco/haskell-filesystem/issues/19 .
+-- <https://github.com/fpco/haskell-filesystem/issues/19> .
 newtype Path        = Path {getPath :: F.FilePath}
   deriving (Show, Typeable, Data, Eq, Ord)
 
@@ -165,8 +166,8 @@ instance ToJSON Pool where
 data Volume         = Volume
                         { volName  :: Name          -- ^ Volume @name@.
                         , volSize  :: Last Size     -- ^ Volume @capacity@.
-                        , volPath  :: First Path    -- ^ Volume @<target><path/>@.
-                        , volPool  :: Last Pool     -- ^ Volume pool.
+                        , volPath  :: First Path    -- ^ Volume @\<target\>\<path/\>@.
+                        , volPool  :: Last Pool     -- ^ Volume @pool@.
                         }
   deriving (Show, Typeable, Data, Eq, Ord)
 
@@ -198,12 +199,16 @@ instance ToJSON Volume where
                             , "pool" .=? volPool
                             ]
 
+-- | Lens to name of 'Volume'.
 volNameL :: LensA Volume Name
 volNameL f z@Volume {volName = x}   = fmap (\x' -> z{volName = x'}) (f x)
+-- | Lens to size of 'Volume'.
 volSizeL :: LensA Volume (Last Size)
 volSizeL f z@Volume {volSize = x}   = fmap (\x' -> z{volSize = x'}) (f x)
+-- | Lens to path of 'Volume' device.
 volPathL :: LensA Volume (First Path)
 volPathL f z@Volume {volPath = x}   = fmap (\x' -> z{volPath = x'}) (f x)
+-- | Lens to libvirt pool of 'Volume'.
 volPoolL :: LensA Volume (Last Pool)
 volPoolL f z@Volume {volPool = x}   = fmap (\x' -> z{volPool = x'}) (f x)
 
@@ -228,9 +233,7 @@ instance ToJSON Arch where
 
 -- | Type for libvirt @vcpu@ definition inside domain. Use 'parseVCpu' for
 -- converting from text, 'fromInteger' for converting from a number and
--- 'toInteger' for converting to a number. Not all 'Integer's are valid
--- 'VCpu's, hence i don't provide lens 'LensA VCpu Integer', because such lens
--- will break lens laws.
+-- 'toInteger' for converting to a number.
 newtype VCpu        = VCpu {getVCpu :: Sum Integer}
   deriving (Show, Typeable, Data, Eq, Ord, Monoid)
 
@@ -343,20 +346,28 @@ data Domain         = Domain
                         }
   deriving (Show, Typeable, Data, Eq, Ord)
 
+-- | Lens to name of 'Domain'.
 nameL :: LensA Domain Name
 nameL   f z@Domain {name = x}   = fmap (\x' -> z{name = x'}) (f x)
+-- | Lens to architecture of 'Domain'.
 archL :: LensA Domain Arch
 archL   f z@Domain {arch = x}   = fmap (\x' -> z{arch = x'}) (f x)
+-- | Lens to memory size used by 'Domain'.
 memoryL :: LensA Domain (Last Size)
 memoryL f z@Domain {memory = x} = fmap (\x' -> z{memory = x'}) (f x)
+-- | Lens to number of cpus used by 'Domain'.
 vcpuL :: LensA Domain (Last VCpu)
 vcpuL   f z@Domain {vcpu = x}   = fmap (\x' -> z{vcpu = x'}) (f x)
+-- | Lens to path of cdrom image attached to 'Domain'.
 cdromL :: LensA Domain (First Path)
 cdromL  f z@Domain {cdrom = x}  = fmap (\x' -> z{cdrom = x'}) (f x)
+-- | Lens to 'Volume' of 'Domain'.
 volumeL :: LensA Domain Volume
 volumeL f z@Domain {volume = x} = fmap (\x' -> z{volume = x'}) (f x)
+-- | Lens to bridge 'Interface' used by 'Domain'.
 bridgeL :: LensA Domain (Last Interface)
 bridgeL f z@Domain {bridge = x} = fmap (\x' -> z{bridge = x'}) (f x)
+-- | Lens to 'IP' address of 'Domain'.
 ipL :: LensA Domain (Last IP)
 ipL     f z@Domain {ip = x}     = fmap (\x' -> z{ip = x'}) (f x)
 
@@ -413,24 +424,21 @@ t .=? x
 optionA :: (Monoid a, Alternative f) => f a -> f a
 optionA             = A.option mempty
 
+-- | Combined error type, wrapping parser and libvirt errors.
 data VmError        = XmlGenError G.ParserError
                     | YamlParseError F.FilePath ParseException
                     | LibvirtError T.Text
                     | UnknownError TypeRep
   deriving (Show)
 
--- | Convert some error to 'VmError'. Note, that 'XmlGenerationError' value
--- can't be constructed using this function, because it contains
--- 'IncludeResolver'.
+-- | Convert some error to 'VmError'.
 toVmError :: Typeable a => a -> VmError
 toVmError x         = fromMaybe (UnknownError (typeOf x)) $
         uncurry YamlParseError  <$> cast x
     <|>         XmlGenError     <$> cast x
     <|>         LibvirtError    <$> cast x
 
-toVmErrorM :: (Functor m, Typeable e) => ExceptT e m a -> ExceptT VmError m a
-toVmErrorM          = withExceptT toVmError
-
+-- | Lift 'Either' error into 'VmError'.
 liftVmError :: (Typeable e, MonadError VmError m) => m (Either e a) -> m a
 liftVmError m       = m >>= either (throwError . toVmError) return
 

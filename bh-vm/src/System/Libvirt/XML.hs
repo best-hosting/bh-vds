@@ -4,6 +4,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes         #-}
 
+-- |
+-- Module: System.Libvirt.XML
+--
+-- Read libvirt XML and parse it into a "System.Libvirt.Types" types.
+
 module System.Libvirt.XML
     ( volumeXml
     , readVolumeXml
@@ -14,23 +19,24 @@ module System.Libvirt.XML
     )
   where
 
-import Data.Monoid
-import Data.Maybe
-import Data.Generics
-import qualified Data.Text as T
-import Control.Monad.IO.Class
-import Text.XML.Light
-import qualified Text.XML.Light.Lexer as X
-import qualified Filesystem.Path.CurrentOS as F
+import           Data.Monoid
+import           Data.Generics
+import qualified Data.Text                  as T
+import           Control.Monad.IO.Class
+import           Text.XML.Light
+import qualified Text.XML.Light.Lexer       as X
+import qualified Filesystem.Path.CurrentOS  as F
 
-import System.Libvirt.Types
-import Internal.Common
-import Internal.Control.Lens
-import Sgf.Data.Generics.Aliases
-import Sgf.Data.Generics.Schemes
-import Sgf.Text.XML.Light.Proc
+import           System.Libvirt.Types
+import           Sgf.Data.Generics.Aliases
+import           Sgf.Data.Generics.Schemes
+import           Sgf.Text.XML.Light.Proc
+
+import           Internal.Common
+import           Internal.Control.Lens
 
 
+-- | Generic query for @path@ element under @target@ element.
 volDiskXml :: GenericRecQ (Endo Volume, Bool)
 volDiskXml          = endParserQL volPathL
                             (pure . toFirst . filePath . onlyText')
@@ -157,9 +163,9 @@ initDomain f        = modifyAA volumeL initVols . readDomainXml
 -- | Use a function (usually, result of parsing something with 'parseOnly') to
 -- construct a final 'endQ' generic query, which assigns parsed value using
 -- specified 'LensA'. Note, that if i'll take 'Parser b' here instead of 's ->
--- Either e b', i can't make 'endParserQL' to work on any input, like now.
--- Also with current type i may use 'endOfInput' in specific type parsers,
--- because they're evaluated till the end with 'parseOnly' in their specific
+-- Either e b', i can't make endParserQL to work on any input, like now.  Also
+-- with current type i may use 'endOfInput' in specific type parsers, because
+-- they're evaluated till the end with 'parseOnly' in their specific
 -- functions.
 endParserQL :: Typeable s => LensA a b -> (s -> Either e b)
                -> GenericRecQ (Endo a, Bool)
