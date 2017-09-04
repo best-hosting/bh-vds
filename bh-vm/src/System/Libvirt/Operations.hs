@@ -12,8 +12,9 @@ import qualified Filesystem.Path.CurrentOS as F
 import TextShow
 import Control.Monad.Except
 
-import Sgf.Common
 import System.Libvirt.Types
+import Internal.Common
+
 
 -- | @virsh list --all@
 virshListAll :: MonadIO m => m [Name]

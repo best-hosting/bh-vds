@@ -44,6 +44,9 @@ library:
         - System.Libvirt.XML
         - BH.System.Libvirt.Types
         - BH.System.Libvirt
+        - Sgf.Data.Generics.Aliases
+        - Sgf.Data.Generics.Schemes
+        - Sgf.Text.XML.Light.Proc
 
 executables:
     bh-vm:

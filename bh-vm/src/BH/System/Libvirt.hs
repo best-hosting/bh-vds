@@ -25,12 +25,13 @@ import qualified Data.Set as S
 import Control.Monad.State
 import Data.Yaml.Aeson
 
-import Sgf.Common
 import System.Libvirt.Types
 import System.Libvirt.XML
 import System.Libvirt.Template
 import System.Libvirt.Operations
 import BH.System.Libvirt.Types
+
+import Internal.Common
 
 
 -- | Read all domains from @virsh@.

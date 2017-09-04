@@ -23,9 +23,9 @@ import Text.XML.Light
 import qualified Text.XML.Light.Lexer as X
 import qualified Filesystem.Path.CurrentOS as F
 
-import Sgf.Common
-import Sgf.Control.Lens
 import System.Libvirt.Types
+import Internal.Common
+import Internal.Control.Lens
 import Sgf.Data.Generics.Aliases
 import Sgf.Data.Generics.Schemes
 import Sgf.Text.XML.Light.Proc

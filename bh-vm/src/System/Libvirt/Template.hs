@@ -24,8 +24,8 @@ import System.IO.Error
 import qualified Filesystem.Path.CurrentOS as F
 import Control.Monad.Writer
 
-import Sgf.Common
 import System.Libvirt.Types
+import Internal.Common
 
 
 -- | Convert 'ParserError' to an error message.

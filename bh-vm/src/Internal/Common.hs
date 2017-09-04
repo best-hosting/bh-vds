@@ -1,5 +1,5 @@
 
-module Sgf.Common
+module Internal.Common
   where
 
 import Data.Monoid

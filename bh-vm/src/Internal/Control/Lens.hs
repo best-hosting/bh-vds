@@ -1,6 +1,6 @@
 {-# LANGUAGE Rank2Types #-}
 
-module Sgf.Control.Lens
+module Internal.Control.Lens
     ( LensA
     , viewA
     , viewAmaybe
