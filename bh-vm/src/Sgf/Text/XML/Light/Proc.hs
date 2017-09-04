@@ -3,20 +3,18 @@
 -- |
 -- Module: Sgf.Text.XML.Light.Proc
 --
--- Operations with xml ADT created by "Text.XML.Light".
+-- Predicates and operations on xml values created by "Text.XML.Light".
 
 module Sgf.Text.XML.Light.Proc
     ( qn
-    , elQN
     , elN
-    , attrQN
     , attrN
-    , elAttrQN
+    , elAttrVal
     , queryXMLPath
     , queryXMLPath'
 
-    , onlyTextT
     , onlyText'
+    , onlyTextT
     )
   where
 
@@ -29,27 +27,22 @@ import           Text.XML.Light
 import           Sgf.Data.Generics.Schemes
 
 
--- | Make 'QName' with only 'qName' set.
+-- | Make 'QName' from 'String'.
 qn :: String -> QName
 qn s            = QName {qName = s, qURI = Nothing, qPrefix = Nothing}
 
-elQN :: Monoid r => QName -> Element -> (r, Bool)
-elQN qn x
-  | elName x == qn  = (mempty, False)
-  | otherwise       = (mempty, True)
-
+-- | Predicate matching 'qName' of 'Element'.
 elN :: String -> Element -> Bool
 elN n               = (n ==) . qName . elName
 
-attrQN :: QName -> Attr -> Bool
-attrQN qn           = (qn ==) . attrKey
-
+-- | Predicate matching 'qName' of 'Attr'.
 attrN :: String -> Attr -> Bool
 attrN n             = (n ==) . qName . attrKey
 
-elAttrQN :: QName -> String -> Element -> Bool
-elAttrQN qn v x
-  | maybe False (== v) (findAttr qn x)  = True
+-- | Predicate matching value of 'Attr' with specified 'QName' in an 'Element'
+elAttrVal :: QName -> String -> Element -> Bool
+elAttrVal aqn v x
+  | maybe False (== v) (findAttr aqn x) = True
   | otherwise                           = False
 
 
@@ -63,13 +56,17 @@ queryXMLPath :: (r -> r -> r) -> GenericQ ([QName] -> r) -> GenericQ r
 queryXMLPath k q    = flip runReader []
                         . everythingR setQName (liftA2 k) (reader <$> q)
 
+-- | Monoid version of 'queryXMLPath'.
 queryXMLPath' :: Monoid r => GenericQ ([QName] -> r) -> GenericQ r
 queryXMLPath'       = queryXMLPath mappend
 
 
-onlyTextT :: [Content] -> T.Text
-onlyTextT           = T.pack . onlyText'
-
+-- | 'onlyText' version concatenating all text from a list
+-- of XML content.
 onlyText' :: [Content] -> String
 onlyText'           = concatMap cdData . onlyText
+
+-- | 'onlyText'' version returning 'T.Text'.
+onlyTextT :: [Content] -> T.Text
+onlyTextT           = T.pack . onlyText'
 

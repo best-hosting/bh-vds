@@ -91,7 +91,7 @@ bridgeXml           = endParserQL bridgeL (fmap toLast . parseIntName . T.pack)
 domIpXml :: GenericRecQ (Endo Domain, Bool)
 domIpXml            = endParserQL ipL (fmap toLast . parseIP . T.pack)
     `extRecL` pureQ (attrN "value")
-    `extRecL` pureQ (elN "parameter" <&&> elAttrQN (qn "name") "IP")
+    `extRecL` pureQ (elN "parameter" <&&> elAttrVal (qn "name") "IP")
 
 -- | Generic query for values in 'Domain' initialized from the @interface@
 -- block in libvirt domain xml tree (works on /partial/ xml tree).
@@ -107,9 +107,9 @@ domInterfaces x
 domDevices :: Element -> ((Endo Domain, Bool), GenericRecQ (Endo Domain, Bool))
 domDevices x
   | elN "interface" x   = next (mkRecL domInterfaces)
-  | elN "disk" x && elAttrQN (qn "device") "cdrom" x = next $
+  | elN "disk" x && elAttrVal (qn "device") "cdrom" x = next $
                           sourceFileXml (Endo . setA cdromL . toFirst . filePath)
-  | elN "disk" x && elAttrQN (qn "device") "disk" x  = next $
+  | elN "disk" x && elAttrVal (qn "device") "disk" x  = next $
                           sourceDevXml (\y -> Endo $ setA volumeL (volDisk y))
   | otherwise           = stop mempty
   where
