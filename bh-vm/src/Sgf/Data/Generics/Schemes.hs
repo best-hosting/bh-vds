@@ -1,5 +1,10 @@
 {-# LANGUAGE RankNTypes             #-}
 
+-- |
+-- Module: Sgf.Data.Generics.Schemes
+--
+-- Traversals using generic recursive queries.
+
 module Sgf.Data.Generics.Schemes
     ( everythingR
     , everythingRec
@@ -20,14 +25,14 @@ everythingR :: (MonadReader r m, Data a) => GenericQ (r -> r)
 everythingR f k q x = local (f x)
                         $ foldl k (q x) (gmapQ (everythingR f k q) x)
 
--- | 'everything' traversal for recursive query 'GenericRecQ'. The new query
+-- | 'everything' traversal with recursive query 'GenericRecQ'. The new query
 -- is applied to all subterms at one level.
 everythingRec :: Data a => (r -> r -> r) -> GenericRecQ r -> a -> r
 everythingRec k q x     =
     let (z, q') = unRQ q x
     in  foldl k z (gmapQ (everythingRec k q') x)
 
--- | 'everythingBut' traversal for recursive query 'GenericRecQ'. The new
+-- | 'everythingBut' traversal with recursive query 'GenericRecQ'. The new
 -- query is applied to all subterms at one level.
 everythingRecBut :: Data a => (r -> r -> r) -> GenericRecQ (r, Bool) -> a -> r
 everythingRecBut k q x  =

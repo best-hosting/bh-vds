@@ -2,6 +2,11 @@
 {-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE RecordWildCards        #-}
 
+-- |
+-- Module: System.Libvirt.Template
+--
+-- Generate @libvirt@ xml from @jinja2@ template.
+
 module System.Libvirt.Template
     ( showParserError
     , printParserError
@@ -14,18 +19,19 @@ module System.Libvirt.Template
     )
   where
 
-import Data.Maybe
-import Data.Monoid
-import qualified Data.Text as T
-import Control.Monad.Except
-import Text.Ginger
-import TextShow
-import System.IO.Error
-import qualified Filesystem.Path.CurrentOS as F
-import Control.Monad.Writer
+import           Data.Maybe
+import           Data.Monoid
+import qualified Data.Text                  as T
+import           Control.Monad.Except
+import           Text.Ginger
+import           TextShow
+import           System.IO.Error
+import qualified Filesystem.Path.CurrentOS  as F
+import           Control.Monad.Writer
 
-import System.Libvirt.Types
-import Internal.Common
+import           System.Libvirt.Types
+
+import           Internal.Common
 
 
 -- | Convert 'ParserError' to an error message.
@@ -89,6 +95,7 @@ domainLookup Domain{..} n
   | n == "path"     = notEmptyGVal n (fromFirst (volPath volume))
   | otherwise       = error . T.unpack $ "No such variable: '" <> n <> "'"
 
+-- | Check, that value is not a 'mempty'.
 notEmptyGVal :: (Eq a, Monoid a, TextShow a) => VarName -> a -> GVal m
 notEmptyGVal n x
   | x == mempty     = error . T.unpack $ "Variable '" <> n <> "' is empty."
