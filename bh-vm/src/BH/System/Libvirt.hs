@@ -1,40 +1,52 @@
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE FlexibleContexts   #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards    #-}
 
+-- |
+-- Module: BH.System.Libvirt
+--
+-- Main operations provided by @bh-vm@.
+
 module BH.System.Libvirt
-    ( buildDomSet
+    (
+    -- * Operations.
+    --
+    -- $operations
+      buildDomSet
     , buildIPMap
     , setVolPath
     , mergeConfigs
+
+    -- * Main.
+    --
+    -- $main
     , defineVm
     )
   where
 
-import Data.Maybe
-import Prelude      hiding (FilePath)
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
-import Control.Monad.Reader
-import Data.Monoid
-import qualified Data.String as S
-import Control.Monad.Except
-import qualified Data.Map as M
-import qualified Data.Set as S
-import Control.Monad.State
-import Data.Yaml.Aeson
+import qualified Data.Text              as T
+import qualified Data.Text.IO           as T
+import           Control.Monad.Reader
+import           Data.Monoid
+import qualified Data.String            as S
+import           Control.Monad.Except
+import qualified Data.Map               as M
+import qualified Data.Set               as S
+import           Control.Monad.State
+import           Data.Yaml.Aeson
 
-import System.Libvirt.Types
-import System.Libvirt.XML
-import System.Libvirt.Template
-import System.Libvirt.Operations
-import BH.System.Libvirt.Types
+import           System.Libvirt.Types
+import           System.Libvirt.XML
+import           System.Libvirt.Template
+import           System.Libvirt.Operations
+import           BH.System.Libvirt.Types
 
-import Internal.Common
+import           Internal.Common
 
 
--- | Read all domains from @virsh@.
+-- $operations
+
+-- | Read all domains from @virsh@ and build a 'S.Set'.
 buildDomSet :: MonadIO m => m (S.Set Domain)
 buildDomSet         = virshListAll >>= foldM go S.empty
   where
@@ -44,15 +56,15 @@ buildDomSet         = virshListAll >>= foldM go S.empty
         d <- initDomain virshVolDumpXml c
         return (S.insert d zs)
 
--- | Add domains from a 'Set' to an 'IPMap'.
+-- | Add domains from a 'S.Set' to an 'IPMap'.
 buildIPMap :: IPMap -> S.Set Domain -> IPMap
 buildIPMap z0       = S.fold (\d -> M.insertWith S.union
                                                  (fromLast (ip d))
                                                  (S.singleton d))
                              z0
 
-
--- | Merge 'SystemConf' into initial 'Domain' value.
+-- | Merge 'SystemConf' into initial 'Domain' value (probably, the result of
+-- summing 'PlanConf' and 'OsConf').
 mergeConfigs :: Name -> SystemConf -> Domain -> PState
 mergeConfigs dn SystemConf{..} d0 =
     -- Note, that 'volName' from 'sysDomain' is appended /directly/ (without
@@ -79,6 +91,7 @@ maybeSep s x y
   | y == mempty     = x
   | otherwise       = x <> s <> y
 
+-- | Create 'Domain' 's 'Volume' in libvirt and set its path.
 setVolPath :: (MonadError VmError m, MonadIO m) => Domain -> m Domain
 setVolPath d        = do
     let v = volume d
@@ -86,6 +99,9 @@ setVolPath d        = do
     p <- virshVolPath v
     return d{volume = v{volPath = pure (Path p)}}
 
+-- $main
+
+-- | Read configs and define a 'Domain' in libvirt.
 defineVm :: P ()
 defineVm            = do
     Config{..} <- ask
