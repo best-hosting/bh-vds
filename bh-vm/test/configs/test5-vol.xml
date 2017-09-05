@@ -1,25 +1,22 @@
-<volume type='block'>
+<volume type='file'>
   <name>test5</name>
-  <key>GGkLNntB-MbdHDh</key>
+  <key>/home/common/sgf/Documents/bh-vds/bh-vm/test/images/test5</key>
   <source>
-    <device path='/dev/md1'>
-      <extent start='22997368832' end='39103496192'/>
-    </device>
   </source>
-  <capacity unit='bytes'>40000000000</capacity>
-  <allocation unit='bytes'>16106127360</allocation>
-  <physical unit='bytes'>16106127360</physical>
+  <capacity unit='bytes'>40000000</capacity>
+  <allocation unit='bytes'>40001536</allocation>
   <target>
-    <path>/dev/vds/test5</path>
+    <path>/home/common/sgf/Documents/bh-vds/bh-vm/test/images/test5</path>
+    <format type='raw'/>
     <permissions>
       <mode>0600</mode>
-      <owner>0</owner>
-      <group>6</group>
+      <owner>1000</owner>
+      <group>1000</group>
     </permissions>
     <timestamps>
-      <atime>1498830599.764533873</atime>
-      <mtime>1498830599.764533873</mtime>
-      <ctime>1498830599.764533873</ctime>
+      <atime>1504623855.826388854</atime>
+      <mtime>1504622505.461677643</mtime>
+      <ctime>1504622505.473677614</ctime>
     </timestamps>
   </target>
 </volume>
