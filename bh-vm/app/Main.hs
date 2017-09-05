@@ -52,12 +52,12 @@ import Build.Pathes (prefix)
 -- | Use matcher function to match against supplied 'String' and, if match
 -- suceeded, return full path to config file with that name. Note, that file
 -- existence is _not_ checked.
-matchConf :: (F.FilePath -> (F.FilePath, [FilePattern]))
+matchConf :: (FilePath -> (FilePath, [FilePattern]))
              -> String -> Either String F.FilePath
-matchConf f t       = let (d, ps) = f (F.decodeString prefix) in
+matchConf f t       = let (d, ps) = f prefix in
     case foldr go ([], []) ps of
-        ([r], _)    -> Right (d F.</> r)
-        ([] , [w])  -> Right (d F.</> w)
+        ([r], _)    -> Right (F.decodeString (d </> r))
+        ([] , [w])  -> Right (F.decodeString (d </> w))
         ([] , [])   -> Left $ "Not a valid plan name: " ++ t
         (rs , ws)   -> Left $ "More, than one pattern matches: "
                                 ++ show rs ++ ", " ++ show ws
@@ -65,11 +65,11 @@ matchConf f t       = let (d, ps) = f (F.decodeString prefix) in
     -- | Try to match string against entire 'FilePattern' or only against its
     -- basename.
     go :: FilePattern
-          -> ([F.FilePath], [F.FilePath]) -> ([F.FilePath], [F.FilePath])
+          -> ([FilePath], [FilePath]) -> ([FilePath], [FilePath])
     go p (zs, ws)   =
-        ( if p ?== t then F.decodeString t : zs else zs
+        ( if p ?== t then t : zs else zs
         , if takeBaseName p ?== t
-                     then F.decodeString (t <.> takeExtension p) : ws else ws
+                     then (t <.> takeExtension p) : ws else ws
         )
 
 -- | Command-line options.
