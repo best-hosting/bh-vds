@@ -65,12 +65,9 @@ executables:
     build:
         source-dirs:
             - app
-        <<: *deps
         dependencies:
             - shake
-            - directory
             - filepath
-            - bh-vm
         main: Build.hs
         <<: *ghc-opts
         ghc-options:

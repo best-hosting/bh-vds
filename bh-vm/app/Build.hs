@@ -5,7 +5,6 @@ import Development.Shake
 import Control.Monad
 import System.FilePath
 import System.Console.GetOpt
-import qualified Filesystem.Path.CurrentOS as F
 
 import Pathes
 
@@ -142,10 +141,9 @@ build op@Options{..} args       = do
         copyFile' (replacePrefix (bindir op) srcBinDir dst) dst
   where
     -- | Find config files and 'need' them.
-    needConfigs :: (F.FilePath -> (F.FilePath, [FilePattern])) -> Action ()
+    needConfigs :: (FilePath -> (FilePath, [FilePattern])) -> Action ()
     needConfigs f   = do
-        let (dF, ps) = f (F.decodeString srcConfDir)
-            d        = F.encodeString dF
+        let (d, ps) = f srcConfDir
         fs <- getDirectoryFiles d ps
         let rs = map ((replacePrefix srcConfDir (sysconfdir op) d) </>) fs
         need rs
