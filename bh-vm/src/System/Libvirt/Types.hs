@@ -146,6 +146,8 @@ instance Monoid Path where
       | otherwise   = Path (x `mappend` y)
 instance TextShow Path where
     showb           = fromString . F.encodeString . getPath
+instance S.IsString Path where
+    fromString      = Path . S.fromString
 instance FromJSON Path where
     parseJSON v     = Path . F.decodeString <$> parseJSON v
 instance ToJSON Path where

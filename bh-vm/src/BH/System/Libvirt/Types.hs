@@ -37,6 +37,7 @@ import qualified Filesystem.Path.CurrentOS  as F
 import qualified Data.Map                   as M
 import qualified Data.Set                   as S
 import           Control.Monad.State
+import           Control.Monad.Managed
 import           Data.Yaml.Aeson
 
 import System.Libvirt.Types
@@ -63,11 +64,11 @@ parseIPMap m    = M.foldrWithKey go M.empty m
                     . parseIP $ x
 
 -- | Main monad.
-type P a            = StateT PState (ReaderT Config (ExceptT VmError IO)) a
+type P a    = StateT PState (ReaderT Config (ExceptT VmError Managed)) a
 
 -- | Run 'P' monad.
 runP :: Config -> P () -> IO ()
-runP cf mx          = do
+runP cf mx          = runManaged $ do
     r <- runExceptT . flip runReaderT cf . flip runStateT defPState $ mx
     liftIO $ case r of
       Left (XmlGenError pe)     -> printParserError loadFile pe >>= putStrLn

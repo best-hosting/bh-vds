@@ -93,11 +93,9 @@ maybeSep s x y
 
 -- | Create 'Domain' 's 'Volume' in libvirt and set its path.
 setVolPath :: (MonadError VmError m, MonadIO m) => Domain -> m Domain
-setVolPath d        = do
-    let v = volume d
-    virshVolCreate v
-    p <- virshVolPath v
-    return d{volume = v{volPath = pure (Path p)}}
+setVolPath d@Domain{..} = do
+    p <- virshVolPath volume
+    return d{volume = volume{volPath = pure (Path p)}}
 
 -- $main
 
@@ -130,8 +128,14 @@ defineVm            = do
                                         ++ "Add it to 'system.yaml' first."
         | otherwise -> return ip
       Nothing   -> return $ head (M.keys freeIPs)
+    let d' = dom0{ip = toLast dip}
 
-    d <- setVolPath dom0{ip = toLast dip}
+    let v = volume d'
+    vh <- liftVmError $ genVolumeXml v volTmplFile
+    liftIO $ T.writeFile "vol-gen.xml" vh
+    virshVolCreate v vh
+
+    d <- setVolPath d'
     modify (\ps -> ps{ domain = d
                      , ipMap = buildIPMap ipMap0 (S.insert d dset)
                      })
@@ -142,9 +146,7 @@ defineVm            = do
 
     dh <- liftVmError $ genDomainXml d domTmplFile
     liftIO $ T.writeFile "dom-gen.xml" dh
-    let v = volume d
-    vh <- liftVmError $ genVolumeXml v volTmplFile
-    liftIO $ T.writeFile "vol-gen.xml" vh
+    virshDefine d dh
 
 -- FIXME: Do not assign number, if there is only one 'mempty' volume. Or just
 -- do not assign number to first volume without name.
