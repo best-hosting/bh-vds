@@ -4,7 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards            #-}
 
-module Sgf.System.Libvirt.Types
+module System.Libvirt.Types
     ( Name
     , parseName
     , Size
@@ -55,7 +55,7 @@ import Control.Applicative
 import Control.Monad.Except
 import qualified Filesystem.Path.CurrentOS as F
 
-import Sgf.Control.Lens
+import Internal.Control.Lens
 
 
 -- | Type for names. Use 'parseName' for converting from text and 'showt' for

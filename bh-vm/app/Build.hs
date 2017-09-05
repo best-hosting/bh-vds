@@ -13,6 +13,9 @@ import Pathes
 srcConfDir :: FilePath
 srcConfDir  = ".." </> "configs"
 
+buildIncludesDir :: FilePath
+buildIncludesDir  = "app/Build"
+
 -- | Replace path prefix @old@ (starting and ending at path component
 -- boundaries) with @new@, if matched:
 --
@@ -112,15 +115,15 @@ build op@Options{..} args       = do
         need [bindir op </> "bh-vm"]
 
     "build"     ~> do
-        need ["src/Build/Pathes.hs"]
+        need [buildIncludesDir </> "Pathes.hs"]
         cmd "stack build" flags
 
     "clean"     ~> do
-        liftIO $ removeFiles "src/Build" ["//"]
+        liftIO $ removeFiles buildIncludesDir ["//"]
         cmd "stack clean"
 
     -- Generate module file with used config prefix.
-    "src/Build/Pathes.hs" %> \dst ->
+    buildIncludesDir </> "*.hs" %> \dst ->
         writeFileChanged dst $ "module Build.Pathes\n\
             \  where\n\
             \   prefix :: FilePath\n\

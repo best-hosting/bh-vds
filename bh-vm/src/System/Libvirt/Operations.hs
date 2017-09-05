@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE FlexibleContexts   #-}
 
-module Sgf.System.Libvirt.Operations
+module System.Libvirt.Operations
   where
 
 import Data.Monoid
@@ -12,8 +12,9 @@ import qualified Filesystem.Path.CurrentOS as F
 import TextShow
 import Control.Monad.Except
 
-import Sgf.Common
-import Sgf.System.Libvirt.Types
+import System.Libvirt.Types
+import Internal.Common
+
 
 -- | @virsh list --all@
 virshListAll :: MonadIO m => m [Name]

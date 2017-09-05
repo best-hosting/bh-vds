@@ -1,5 +1,5 @@
 
-module Sgf.Data.Generics.Lenses
+module Internal.Data.Generics.Lenses
   where
 
 import Data.Generics

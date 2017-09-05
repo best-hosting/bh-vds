@@ -11,9 +11,10 @@ import System.FilePath
 import qualified Filesystem.Path.CurrentOS as F
 import Control.Monad
 
-import Lib
 import Pathes
-import Sgf.System.Libvirt.Types
+import System.Libvirt.Types
+import BH.System.Libvirt.Types
+import BH.System.Libvirt
 
 #if LOCAL
 prefix :: FilePath
@@ -105,7 +106,7 @@ options             = Config
 
 main :: IO ()
 main                = join . execParser $
-    info (helper <*> (runP <$> options <*> pure work))
+    info (helper <*> (runP <$> options <*> pure defineVm))
     (  fullDesc
     <> header "General program title/description"
     <> progDesc "What does this thing do?"
