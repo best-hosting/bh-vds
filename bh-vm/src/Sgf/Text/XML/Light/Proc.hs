@@ -1,5 +1,10 @@
 {-# LANGUAGE RankNTypes             #-}
 
+-- |
+-- Module: Sgf.Text.XML.Light.Proc
+--
+-- Operations with xml ADT created by "Text.XML.Light".
+
 module Sgf.Text.XML.Light.Proc
     ( qn
     , elQN
@@ -15,13 +20,13 @@ module Sgf.Text.XML.Light.Proc
     )
   where
 
-import Data.Generics
-import qualified Data.Text as T
-import Control.Applicative
-import Control.Monad.Reader
-import Text.XML.Light
+import           Data.Generics
+import qualified Data.Text              as T
+import           Control.Applicative
+import           Control.Monad.Reader
+import           Text.XML.Light
 
-import Sgf.Data.Generics.Schemes
+import           Sgf.Data.Generics.Schemes
 
 
 -- | Make 'QName' with only 'qName' set.
