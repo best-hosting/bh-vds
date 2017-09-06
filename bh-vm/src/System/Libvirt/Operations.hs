@@ -19,6 +19,11 @@ module System.Libvirt.Operations
     , virshVolCreate
     , virshVolPath
     , virshDefine
+
+    -- * Libvirt operations in 'MonadManaged'.
+    --
+    -- $managed
+    , createVolume
     )
   where
 
@@ -28,6 +33,7 @@ import           TextShow (showt)
 import           Control.Monad.Except
 import           Turtle
 import           Control.Foldl (list)
+import           Control.Exception
 import           Control.Monad.Managed
 import           System.Directory
 
@@ -92,16 +98,23 @@ virshVolDumpXml p   = strict $ invirsh  [ "vol-dumpxml"
                                         empty
 
 -- | @virsh vol-create@
-virshVolCreate :: MonadManaged m =>
-                    Volume -> Text -> m ()
-virshVolCreate Volume{..} t = do
-    tmp <- liftIO getTemporaryDirectory
-    tf  <- mktempfile (F.decodeString tmp) "virshVolCreate"
-    liftIO $ writeTextFile tf t
+virshVolCreate :: MonadIO m => Volume -> F.FilePath -> m Volume
+virshVolCreate v@Volume{..} xf  = do
     sh $ virsh
             [ "vol-create"
             , "--pool", showt (fromLast volPool)
-            , pack (F.encodeString tf)
+            , pack (F.encodeString xf)
+            ]
+            empty
+    return v
+
+-- | @virsh vol-delete@
+virshVolDelete :: MonadIO m => Volume -> m ()
+virshVolDelete Volume{..}   = do
+    sh $ procs "virsh"
+            [ "vol-delete"
+            , "--pool", showt (fromLast volPool)
+            , showt volName
             ]
             empty
 
@@ -123,7 +136,21 @@ virshDefine _ t     = do
     -- FIXME: Wrapper around `getTemporaryDirectory` and `mktempfile` and,
     -- probably, `writeTextFile` ?
     tmp <- liftIO getTemporaryDirectory
-    tf  <- mktempfile (F.decodeString tmp) "virshVolCreate"
+    tf  <- mktempfile (F.decodeString tmp) "virshDefine"
     liftIO $ writeTextFile tf t
     sh $ virsh ["define", pack (F.encodeString tf)] empty
+
+-- $managed
+
+-- | Create libvirt volume in a safe way: if later computation fails, created
+-- volume will be deleted.
+createVolume :: MonadManaged m => Volume -> Text -> m Volume
+createVolume v0 xml = do
+    tmp <- liftIO getTemporaryDirectory
+    tf  <- mktempfile (F.decodeString tmp) "createVolume"
+    liftIO $ writeTextFile tf xml
+    v <- using $ managed $ \k ->
+        bracketOnError (virshVolCreate v0 tf) virshVolDelete k
+    p <- virshVolPath v
+    return (v{volPath = pure (Path p)})
 

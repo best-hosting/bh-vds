@@ -133,9 +133,9 @@ defineVm            = do
     let v = volume d'
     vh <- liftVmError $ genVolumeXml v volTmplFile
     liftIO $ T.writeFile "vol-gen.xml" vh
-    virshVolCreate v vh
+    v' <- createVolume v vh
+    let d = d'{volume = v'}
 
-    d <- setVolPath d'
     modify (\ps -> ps{ domain = d
                      , ipMap = buildIPMap ipMap0 (S.insert d dset)
                      })
