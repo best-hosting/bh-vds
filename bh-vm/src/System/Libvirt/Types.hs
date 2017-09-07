@@ -41,6 +41,7 @@ module System.Libvirt.Types
     , VmError (..)
     , toVmError
     , liftVmError
+    , throwVmError
     )
   where
 
@@ -56,6 +57,7 @@ import qualified Data.Text                  as T
 import           TextShow
 import           Control.Applicative
 import           Control.Monad.Except
+import           Control.Exception
 import qualified Filesystem.Path.CurrentOS  as F
 
 import           Internal.Control.Lens
@@ -431,10 +433,12 @@ data VmError        = XmlGenError G.ParserError
                     | YamlParseError F.FilePath ParseException
                     | LibvirtError String
                     | IPAlreadyInUse IP [Domain]
-                    | IPNotAvailable IP String
-                    | NoFreeIPs String
+                    | IPNotAvailable IP F.FilePath
+                    | NoFreeIPs F.FilePath
                     | UnknownError TypeRep
   deriving (Show)
+
+instance Exception VmError
 
 -- | Convert some error to 'VmError'.
 toVmError :: Typeable a => a -> VmError
@@ -448,4 +452,8 @@ toVmError x         = fromMaybe (UnknownError (typeOf x)) $
 -- | Lift 'Either' error into 'VmError'.
 liftVmError :: (Typeable e, MonadError VmError m) => m (Either e a) -> m a
 liftVmError m       = m >>= either (throwError . toVmError) return
+
+-- | Convert error in 'Either' to 'VmError' and throw an exception.
+throwVmError :: (MonadIO m, Typeable e) => (Either e a) -> m a
+throwVmError        = either (throw . toVmError) return
 

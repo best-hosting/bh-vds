@@ -13,7 +13,10 @@ import           Data.Yaml.Aeson
 import           Control.Applicative
 import           Control.Arrow
 import           Control.Monad.IO.Class
+import           Control.Exception
 import qualified Filesystem.Path.CurrentOS  as F
+
+import           System.Libvirt.Types
 
 
 -- * Operatins over tuples.
@@ -67,8 +70,8 @@ notEmpty :: (Eq a, Monoid a) => a -> Bool
 notEmpty            = not . (mempty ==)
 
 -- | Add filepath to exception returned by 'decodeFileEither'.
-decodeFileEitherF :: (MonadIO m, FromJSON a) =>
-                     F.FilePath -> m (Either (F.FilePath, ParseException) a)
-decodeFileEitherF f = either (\e -> Left (f, e)) Right <$>
-                       (liftIO . decodeFileEither . F.encodeString $ f)
+decodeFileEither' :: (MonadIO m, FromJSON a) => F.FilePath -> m a
+decodeFileEither' f = do
+    r <- liftIO . decodeFileEither . F.encodeString $ f
+    either (\e -> throw (YamlParseError f e)) return r
 

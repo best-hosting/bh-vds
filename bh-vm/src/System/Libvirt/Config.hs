@@ -31,7 +31,7 @@ module System.Libvirt.Config
 import qualified Data.Text                  as T
 import           TextShow
 import           Control.Monad.Reader
-import           Control.Monad.Except
+import           Control.Exception
 import qualified Filesystem.Path.CurrentOS  as F
 import           Control.Monad.State
 import           Control.Monad.Managed
@@ -40,6 +40,7 @@ import           Data.Yaml.Aeson
 import System.Libvirt.Types
 import System.Libvirt.IP
 import System.Libvirt.Template
+
 
 -- $main
 
@@ -54,21 +55,25 @@ printVmError err    = case err of
         "Libvirt error:\n" ++ er
     IPAlreadyInUse i ds -> return $
         "IP " ++ T.unpack (showt i) ++ " already used by:\n" ++ show ds
-    IPNotAvailable i er -> return $
-        "IP " ++ show i ++ " is not available." ++ er
-    NoFreeIPs er        -> return $ "No free IPs. " ++ show er
+    IPNotAvailable i f  -> return $
+        "IP " ++ show i ++ " is not available." ++
+        " Add it to '" ++ show f ++ "' config first."
+    NoFreeIPs f         -> return $
+        "No free IPs." ++ " Add more to '" ++ show f ++ "' config."
     UnknownError t      -> return $ "Unknown Error type: " ++ show t
 
 -- | Main monad.
-type P a    = StateT PState (ReaderT Config (ExceptT VmError Managed)) a
+type P a    = StateT PState (ReaderT Config Managed) a
 
 -- | Run 'P' monad.
 runP :: Config -> P () -> IO ()
-runP cf mx          = runManaged $ do
-    r <- runExceptT . flip runReaderT cf . flip runStateT defPState $ mx
-    liftIO $ case r of
-      Left e  -> printVmError e >>= putStrLn
-      Right _ -> return ()
+runP cf mx          = runManaged (runReaderT (evalStateT mx defPState) cf)
+                        `catch` \e ->
+    case fromException e of
+      Just err  -> printVmError err >>= putStrLn
+      _         -> do
+        putStrLn "Unknown exception: "
+        putStrLn (displayException e)
 
 -- | Main state.
 data PState         = PState {domain :: Domain, ipMap :: IPMap}
