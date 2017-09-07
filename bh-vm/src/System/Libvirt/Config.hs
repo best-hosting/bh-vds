@@ -11,7 +11,8 @@ module System.Libvirt.Config
     -- * Main.
     --
     -- $main
-      P
+      printVmError
+    , P
     , runP
     , PState (..)
     , defPState
@@ -42,6 +43,22 @@ import System.Libvirt.Template
 
 -- $main
 
+-- | Pretty print 'VmError'.
+printVmError :: MonadIO m => VmError -> m String
+printVmError err    = case err of
+    XmlGenError pe      -> printParserError loadFile pe
+    YamlParseError f pe -> return $
+        "Yaml parse error in file '" ++ F.encodeString f ++ "':\n"
+            ++ prettyPrintParseException pe
+    LibvirtError er     -> return $
+        "Libvirt error:\n" ++ er
+    IPAlreadyInUse i ds -> return $
+        "IP " ++ T.unpack (showt i) ++ " already used by:\n" ++ show ds
+    IPNotAvailable i er -> return $
+        "IP " ++ show i ++ " is not available." ++ er
+    NoFreeIPs er        -> return $ "No free IPs. " ++ show er
+    UnknownError t      -> return $ "Unknown Error type: " ++ show t
+
 -- | Main monad.
 type P a    = StateT PState (ReaderT Config (ExceptT VmError Managed)) a
 
@@ -50,12 +67,7 @@ runP :: Config -> P () -> IO ()
 runP cf mx          = runManaged $ do
     r <- runExceptT . flip runReaderT cf . flip runStateT defPState $ mx
     liftIO $ case r of
-      Left (XmlGenError pe)     -> printParserError loadFile pe >>= putStrLn
-      Left (YamlParseError f pe) -> putStrLn $
-        "Yaml parse error in file '" ++ F.encodeString f ++ "':\n"
-            ++ prettyPrintParseException pe
-      Left (LibvirtError er)    -> putStrLn er
-      Left (UnknownError t)     -> print $ "Unknown Error type: " ++ show t
+      Left e  -> printVmError e >>= putStrLn
       Right _ -> return ()
 
 -- | Main state.

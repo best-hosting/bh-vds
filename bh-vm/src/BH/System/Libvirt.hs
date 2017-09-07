@@ -102,14 +102,15 @@ defineVm            = do
     let ipm = getIPMap $ buildIPMap ipMap0 dset
         usedIPs = M.filter (not . S.null) ipm
         freeIPs = M.filter S.null ipm
-    when (M.null freeIPs) $ error "No free IPs."
+    when (M.null freeIPs) . throwError $
+        NoFreeIPs (" Add more to '" ++ show sysConfFile ++ "' config.")
 
     dip <- case domIp of
       Just ip
-        | M.member ip usedIPs    -> error $ "IP already used by "
-                                        ++ show (M.lookup ip usedIPs)
-        | M.notMember ip freeIPs -> error $ "IP is not available. "
-                                        ++ "Add it to 'system.yaml' first."
+        | M.member ip usedIPs    -> throwError $
+            IPAlreadyInUse ip (maybe [] S.toList (M.lookup ip usedIPs))
+        | M.notMember ip freeIPs -> throwError $
+            IPNotAvailable ip (" Add it to '" ++ show sysConfFile ++ "' config first.")
         | otherwise -> return ip
       Nothing   -> return $ head (M.keys freeIPs)
     let d' = dom0{ip = toLast dip}

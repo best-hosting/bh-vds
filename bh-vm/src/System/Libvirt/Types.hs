@@ -430,6 +430,9 @@ optionA             = A.option mempty
 data VmError        = XmlGenError G.ParserError
                     | YamlParseError F.FilePath ParseException
                     | LibvirtError String
+                    | IPAlreadyInUse IP [Domain]
+                    | IPNotAvailable IP String
+                    | NoFreeIPs String
                     | UnknownError TypeRep
   deriving (Show)
 
@@ -439,6 +442,8 @@ toVmError x         = fromMaybe (UnknownError (typeOf x)) $
         uncurry YamlParseError  <$> cast x
     <|>         XmlGenError     <$> cast x
     <|>         LibvirtError    <$> cast x
+    <|> uncurry IPAlreadyInUse  <$> cast x
+    <|> uncurry IPNotAvailable  <$> cast x
 
 -- | Lift 'Either' error into 'VmError'.
 liftVmError :: (Typeable e, MonadError VmError m) => m (Either e a) -> m a
