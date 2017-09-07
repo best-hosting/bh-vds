@@ -3,7 +3,7 @@ ipmap:
   2.2.2.2: []
   3.3.3.3: []
 volume:
-  pool: syspool
+  pool: test
   name: sysvol
   size: 3
   path: /dev/vds

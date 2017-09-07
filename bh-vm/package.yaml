@@ -10,6 +10,7 @@ dependencies: &deps
     - transformers
     - system-filepath
     - system-fileio
+    - directory
     - attoparsec
     - ginger
     - unordered-containers
@@ -18,7 +19,9 @@ dependencies: &deps
     - containers
     - yaml
     - aeson
-    - shake
+    - turtle
+    - foldl
+    - managed
 ghc-options: &ghc-opts
     - -Wall
 _exe-ghc-opts: &exe-ghc-opts
@@ -31,6 +34,10 @@ _exe-ghc-opts: &exe-ghc-opts
 flags:
     local:
         description:    "Prepare for running locally."
+        default:        False
+        manual:         True
+    test:
+        description:    "Use libvirt files from `test` directory instead of asking libvirt."
         default:        False
         manual:         True
 
@@ -47,6 +54,9 @@ library:
         - Sgf.Data.Generics.Aliases
         - Sgf.Data.Generics.Schemes
         - Sgf.Text.XML.Light.Proc
+    when:
+        - condition: flag(test)
+          cpp-options: -DTEST
 
 executables:
     bh-vm:
@@ -54,6 +64,7 @@ executables:
             - app
         <<: *deps
         dependencies:
+            - shake
             - filepath
             - bh-vm
         main: Main.hs

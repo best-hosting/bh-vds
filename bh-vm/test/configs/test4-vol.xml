@@ -1,25 +1,22 @@
-<volume type='block'>
+<volume type='file'>
   <name>test4</name>
-  <key>6TsBf0-GGkL-ZqCs-1btK-3BLg-NntB-MbdHDh</key>
+  <key>/home/common/sgf/Documents/bh-vds/bh-vm/test/images/test4</key>
   <source>
-    <device path='/dev/md1'>
-      <extent start='22997368832' end='39103496192'/>
-    </device>
   </source>
-  <capacity unit='bytes'>16106127360</capacity>
-  <allocation unit='bytes'>16106127360</allocation>
-  <physical unit='bytes'>16106127360</physical>
+  <capacity unit='bytes'>161061273</capacity>
+  <allocation unit='bytes'>161062912</allocation>
   <target>
-    <path>/dev/vds/test4</path>
+    <path>/home/common/sgf/Documents/bh-vds/bh-vm/test/images/test4</path>
+    <format type='raw'/>
     <permissions>
       <mode>0600</mode>
-      <owner>0</owner>
-      <group>6</group>
+      <owner>1000</owner>
+      <group>1000</group>
     </permissions>
     <timestamps>
-      <atime>1498830599.764533873</atime>
-      <mtime>1498830599.764533873</mtime>
-      <ctime>1498830599.764533873</ctime>
+      <atime>1504622404.721921887</atime>
+      <mtime>1504622281.870219980</mtime>
+      <ctime>1504622281.882219951</ctime>
     </timestamps>
   </target>
 </volume>

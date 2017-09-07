@@ -17,3 +17,5 @@ app/Build/Pathes.hs
 [0-9].*
 t/
 
+# Test files.
+test/images/
