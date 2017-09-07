@@ -9,6 +9,17 @@
 -- Different basic `libvirt` operations (implemented as calls to `virsh`).
 
 module System.Libvirt.Operations
+    (
+    -- * Low-level libvirt operations.
+    --
+    -- $lowlevel
+      virshListAll
+    , virshDumpXml
+    , virshVolDumpXml
+    , virshVolCreate
+    , virshVolPath
+    , virshDefine
+    )
   where
 
 import           Data.Text (pack, dropWhileEnd)
@@ -58,6 +69,8 @@ invirsh argv _      = error $
     "invirsh: Unsupported virsh options for test mode: " ++ show argv
 #endif
 
+-- $lowlevel
+
 -- | @virsh list --all@
 virshListAll :: MonadIO m => m [Name]
 virshListAll        = flip fold list $ do
@@ -69,7 +82,8 @@ virshDumpXml :: MonadIO m => Name -> m Text
 virshDumpXml n      = strict $ invirsh  ["dumpxml", showt n] empty
 
 -- | @virsh vol-dumpxml@
--- Note, that @vol-dumpxml@ may work on /full path/ to volume /without/ pool
+--
+-- Note: @virsh vol-dumpxml@ may work on /full path/ to volume /without/ pool
 -- name specified.
 virshVolDumpXml :: MonadIO m => F.FilePath -> m Text
 virshVolDumpXml p   = strict $ invirsh  [ "vol-dumpxml"
@@ -91,7 +105,10 @@ virshVolCreate Volume{..} t = do
             ]
             empty
 
--- | @virsh vol-path@ . Note, newline in filenames /not/ supported.
+-- | @virsh vol-path@
+--
+-- Note: all trailing newlines are dropped, so, generally, newlines in
+-- filenames are /not/ supported.
 virshVolPath :: MonadIO m => Volume -> m F.FilePath
 virshVolPath Volume{..} = fmap (fromText . dropWhileEnd (== '\n')) . strict $
     invirsh
