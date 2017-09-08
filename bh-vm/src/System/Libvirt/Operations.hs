@@ -17,13 +17,10 @@ module System.Libvirt.Operations
     , virshDumpXml
     , virshVolDumpXml
     , virshVolCreate
+    , virshVolDelete
     , virshVolPath
     , virshDefine
-
-    -- * Libvirt operations in 'MonadManaged'.
-    --
-    -- $managed
-    , createVolume
+    , virshUndefine
     )
   where
 
@@ -110,7 +107,7 @@ virshVolCreate v@Volume{..} xf  = do
 
 -- | @virsh vol-delete@
 virshVolDelete :: MonadIO m => Volume -> m ()
-virshVolDelete Volume{..}   = do
+virshVolDelete Volume{..}   =
     sh $ procs "virsh"
             [ "vol-delete"
             , "--pool", showt (fromLast volPool)
@@ -131,26 +128,12 @@ virshVolPath Volume{..} = fmap (fromText . dropWhileEnd (== '\n')) . strict $
         empty
 
 -- | @virsh define@
-virshDefine :: MonadManaged m => Domain -> Text -> m ()
-virshDefine _ t     = do
-    -- FIXME: Wrapper around `getTemporaryDirectory` and `mktempfile` and,
-    -- probably, `writeTextFile` ?
-    tmp <- liftIO getTemporaryDirectory
-    tf  <- mktempfile (F.decodeString tmp) "virshDefine"
-    liftIO $ writeTextFile tf t
-    sh $ virsh ["define", pack (F.encodeString tf)] empty
+virshDefine :: MonadIO m => Domain -> F.FilePath -> m Domain
+virshDefine d xf    = do
+    sh $ virsh ["define", pack (F.encodeString xf)] empty
+    return d
 
--- $managed
-
--- | Create libvirt volume in a safe way: if later computation fails, created
--- volume will be deleted.
-createVolume :: MonadManaged m => Volume -> Text -> m Volume
-createVolume v0 xml = do
-    tmp <- liftIO getTemporaryDirectory
-    tf  <- mktempfile (F.decodeString tmp) "createVolume"
-    liftIO $ writeTextFile tf xml
-    v <- using $ managed $ \k ->
-        bracketOnError (virshVolCreate v0 tf) virshVolDelete k
-    p <- virshVolPath v
-    return (v{volPath = pure (Path p)})
+-- | @virsh undefine@
+virshUndefine :: MonadIO m => Domain -> m ()
+virshUndefine Domain{..} = sh $ virsh ["undefine", showt name] empty
 

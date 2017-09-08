@@ -12,15 +12,24 @@ module BH.System.Libvirt
     -- * Operations.
     --
     -- $operations
-      buildDomSet
-    , buildIPMap
-    , setVolPath
+      readSystemConf
+    , writeSystemConf
     , mergeConfigs
+    , loadConfigs
+    , findIP
+    , acquireIP
+    , createVolume
 
     -- * Main.
     --
     -- $main
-    , defineVm
+    , addVm
+
+    -- * Libvirt operations in 'MonadManaged'.
+    --
+    -- $managed
+    , createVolume
+    , createDomain
     )
   where
 
@@ -37,6 +46,7 @@ import           Control.Exception
 import           Control.Monad.Managed
 import           Data.Yaml.Aeson
 import qualified Filesystem.Path.CurrentOS  as F
+import           System.Directory
 
 import           System.Libvirt.Types
 import           System.Libvirt.XML
@@ -49,6 +59,31 @@ import           Internal.Common
 
 
 -- $operations
+
+
+-- $main
+
+-- | Rebuild 'IPMap' in 'SystemConf'.
+buildIPMap' :: MonadIO m => SystemConf -> m SystemConf
+buildIPMap' scf@SystemConf{..} = do
+    ds <- buildDomSet
+    return (scf{sysIpMap = buildIPMap (clearIPMap sysIpMap) ds})
+  where
+    -- | Clear all data from an 'IPMap', so only 'IP'-s remain.
+    clearIPMap :: IPMap -> IPMap
+    clearIPMap      = IPMap . M.map (const mempty) . getIPMap
+
+-- | Read 'SystemConf' from system config file.
+readSystemConf :: MonadIO m => F.FilePath -> m SystemConf
+readSystemConf scfFile  = decodeFileEither' scfFile >>= buildIPMap'
+
+-- | Write 'SystemConf' to system config file.
+writeSystemConf :: MonadIO m => F.FilePath -> SystemConf -> m ()
+writeSystemConf scfFile scf = liftIO $ do
+    let old = F.encodeString scfFile
+        new = F.encodeString (scfFile F.<.> ".new")
+    encodeFile new scf
+    renameFile new old
 
 -- | Merge 'SystemConf' into initial 'Domain' value (probably, the result of
 -- summing 'PlanConf' and 'OsConf').
@@ -63,7 +98,7 @@ mergeConfigs dn SystemConf{..} d0 =
               }
     -- I'm interested only in IP addresses. List of domains, which use them,
     -- i'll rescan later.
-    in  PState{domain = d', ipMap = IPMap . M.map (const S.empty) . getIPMap $ sysIpMap}
+    in  PState{domain = d', ipMap = sysIpMap}
   where
     addVolNames :: Volume -> Name
     addVolNames v   = dn +++ volName sysVolume +++ volName v
@@ -78,97 +113,87 @@ maybeSep s x y
   | y == mempty     = x
   | otherwise       = x <> s <> y
 
--- | Create 'Domain' 's 'Volume' in libvirt and set its path.
-setVolPath :: (MonadError VmError m, MonadIO m) => Domain -> m Domain
-setVolPath d@Domain{..} = do
-    p <- virshVolPath volume
-    return d{volume = volume{volPath = pure (Path p)}}
-
-
--- $main
-
-freeIPs :: IPMap -> S.Set IP
-freeIPs             = S.fromList . M.keys . M.filter S.null . getIPMap
-
-findIP :: MonadIO m => Config -> IPMap -> Maybe IP -> m IP
-findIP Config{..} ipm mip
-  | not (null freeIPs')  =
-        let usedIPs = M.filter (not . S.null) (getIPMap ipm)
-        in  case mip of
-                Just ip
-                  | M.member ip usedIPs    -> throw $
-                      IPAlreadyInUse ip (maybe [] S.toList (M.lookup ip usedIPs))
-                  | S.notMember ip freeIPs' ->
-                      throw $
-                        IPNotAvailable ip sysConfFile
-                  | otherwise -> return ip
-                Nothing   -> return (head (S.toList freeIPs'))
-  | otherwise       =
-      throw $
-            NoFreeIPs sysConfFile
-  where
-    freeIPs' :: S.Set IP
-    freeIPs'    = freeIPs ipm
-
-acquireIP :: MonadIO m => Config -> IPMap -> Domain -> m Domain
-acquireIP cf@Config{..} ipm0 d     = do
-    dset <- buildDomSet
-    i <- findIP cf (buildIPMap ipm0 dset) domIp
-    return d{ip = toLast i}
-
-readIPM :: MonadIO m => SystemConf -> m IPMap
-readIPM SystemConf{..}  = buildDomSet >>= return . buildIPMap sysIpMap
-
-readSystemConf :: MonadIO m => F.FilePath -> m SystemConf
-readSystemConf sf       = undefined
-
-writeIPM :: MonadIO m => F.FilePath -> SystemConf -> m ()
-writeIPM scfFile scf = do
-    ipm <- readIPM scf
-    liftIO $ encodeFile (F.encodeString scfFile <> ".new") scf{sysIpMap = ipm}
-
-acquireIP2 :: MonadManaged m => Config -> SystemConf -> Domain -> m Domain
-acquireIP2 cf@Config{..} scf d    = do
-    ipm <- using $ managed $
-        bracket (readIPM scf) (\_ -> writeIPM sysConfFile scf)
-    i <- findIP cf ipm domIp
-    return d{ip = toLast i}
-
--- | Read configs and define a 'Domain' in libvirt.
-defineVm :: P ()
-defineVm            = do
-    cf@Config{..} <- ask
-
-    -- Set default initial 'Domain' and load available IPs.
-    --scf          <- liftVmError $ decodeFileEitherF sysConfFile
-    scf          <- decodeFileEither' sysConfFile
+-- | Load all configs.
+-- Note: at the end i /rescan/ 'IPMap' and overwrite 'sysConfFile'. I.e. i
+-- don't use internal 'IPMap' state and just ask @libvirt@.
+loadConfigs :: P ()
+loadConfigs         = do
+    Config{..}  <- ask
+    scf <- using $ managed $
+            bracket (readSystemConf sysConfFile)
+                    (writeSystemConf sysConfFile <=< buildIPMap')
     PlanConf{..} <- decodeFileEither' planConfFile
     OsConf{..}   <- decodeFileEither' osConfFile
-    let ps0@PState{domain = dom0, ipMap = ipMap0}
-                    = mergeConfigs domName scf (planDomain <> osDomain)
-    put ps0
-    liftIO $ encodeFile "dom0.yaml" dom0
-    liftIO $ encodeFile "ipmap0.yaml" scf{sysIpMap = ipMap0}
+    put (mergeConfigs domName scf (planDomain <> osDomain))
 
-    d' <- acquireIP2 cf scf dom0
 
-    let v = volume d'
-    vh <- genVolumeXml v volTmplFile
-    liftIO $ T.writeFile "vol-gen.xml" vh
-    v' <- createVolume v vh
-    let d = d'{volume = v'}
+-- | Note, 'findIP' does /not/ update information about returned 'IP' in
+-- 'IPMap'. Because.. domain definition may not be complete yet.
+findIP :: MonadIO m => Config -> IPMap -> m IP
+findIP Config{..} ipm
+  | not (null freeIPs)  =
+        case domIp of
+          Just ip
+            | M.member ip usedIPs
+                        -> throw (IPAlreadyInUse ip (usedBy ip))
+            | ip `notElem` freeIPs
+                        -> throw (IPNotAvailable ip sysConfFile)
+            | otherwise -> return ip
+          Nothing       -> return (head freeIPs)
+  | otherwise           =  throw (NoFreeIPs sysConfFile)
+  where
+    usedIPs :: M.Map IP (S.Set Domain)
+    usedIPs         = M.filter (not . S.null) (getIPMap ipm)
+    freeIPs :: [IP]
+    freeIPs         = M.keys (M.filter S.null (getIPMap ipm))
+    usedBy :: IP -> [Domain]
+    usedBy          = maybe [] S.toList . flip M.lookup usedIPs
 
-    {-modify (\ps -> ps{ domain = d
-                     , ipMap = buildIPMap ipMap0 (S.insert d dset)
-                     })
+acquireIP :: P ()
+acquireIP           = do
+    cf@Config{..}   <- ask
+    PState{..}      <- get
+    i <- findIP cf ipMap
+    modify (\ps -> ps{domain = domain{ip = toLast i}})
 
-    gets ipMap  >>= \im ->
-                    liftIO $ encodeFile "sys-gen.yaml" scf{sysIpMap = im}-}
-    gets domain >>= liftIO . encodeFile "dom-gen.yaml"
+-- $managed
 
-    dh <- genDomainXml d domTmplFile
-    liftIO $ T.writeFile "dom-gen.xml" dh
-    virshDefine d dh
+-- | Create libvirt volume in a safe way: if later computation fails, created
+-- volume will be deleted.
+createVolume :: P ()
+createVolume        = do
+    Config{..} <- ask
+    PState{..} <- get
+    let v = volume domain
+    xml <- genVolumeXml v volTmplFile
+    liftIO $ T.writeFile "vol-gen.xml" xml
+    tf <- writeTempFile "createVolume" xml
+    v' <- using $ managed $
+            bracketOnError (virshVolCreate v tf) virshVolDelete
+    p  <- virshVolPath v'
+    modify (\ps -> ps{domain = domain{volume = v'{volPath = pure (Path p)}}})
+
+-- | Create libvirt domain in a safe way: if later computation fails, created
+-- domain will be deleted.
+createDomain :: P ()
+createDomain        = do
+    Config{..}  <- ask
+    PState{..}  <- get
+    xml <- genDomainXml domain domTmplFile
+    liftIO $ T.writeFile "dom-gen.xml" xml
+    tf <- writeTempFile "createDomain" xml
+    d  <- using $ managed $
+            bracketOnError (virshDefine domain tf) virshUndefine
+    modify (\ps -> ps{domain = d})
+
+-- | Read configs and define a 'Domain' in libvirt.
+addVm :: P ()
+addVm               = do
+    loadConfigs
+    acquireIP
+    createVolume
+    createDomain
+
 
 -- FIXME: Do not assign number, if there is only one 'mempty' volume. Or just
 -- do not assign number to first volume without name.

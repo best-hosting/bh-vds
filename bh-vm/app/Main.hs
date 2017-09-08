@@ -106,7 +106,7 @@ options             = Config
 
 main :: IO ()
 main                = join . execParser $
-    info (helper <*> (runP <$> options <*> pure defineVm))
+    info (helper <*> (runP <$> options <*> pure addVm))
     (  fullDesc
     <> header "General program title/description"
     <> progDesc "What does this thing do?"

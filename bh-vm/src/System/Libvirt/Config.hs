@@ -57,9 +57,9 @@ printVmError err    = case err of
         "IP " ++ T.unpack (showt i) ++ " already used by:\n" ++ show ds
     IPNotAvailable i f  -> return $
         "IP " ++ show i ++ " is not available." ++
-        " Add it to '" ++ show f ++ "' config first."
+        " Add it to '" ++ F.encodeString f ++ "' config first."
     NoFreeIPs f         -> return $
-        "No free IPs." ++ " Add more to '" ++ show f ++ "' config."
+        "No free IPs." ++ " Add more to '" ++ F.encodeString f ++ "' config."
     UnknownError t      -> return $ "Unknown Error type: " ++ show t
 
 -- | Main monad.
