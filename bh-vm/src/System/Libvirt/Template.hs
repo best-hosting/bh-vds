@@ -22,7 +22,7 @@ module System.Libvirt.Template
 import           Data.Maybe
 import           Data.Monoid
 import qualified Data.Text                  as T
-import           Control.Monad.Except
+import           Control.Exception
 import           Text.Ginger
 import           TextShow
 import           System.IO.Error
@@ -103,11 +103,15 @@ notEmptyGVal n x
 
 -- | Generate libvirt volume xml using specified 'Volume' value as
 -- 'GingerContext' lookup source.
-genVolumeXml :: MonadIO m => Volume -> F.FilePath -> m (Either ParserError T.Text)
-genVolumeXml v src  = genXml (volumeLookup v) src
+genVolumeXml :: MonadIO m => Volume -> F.FilePath -> m T.Text
+genVolumeXml v src  = do
+    r <- genXml (volumeLookup v) src
+    either (throw . XmlGenError) return r
 
 -- | Generate libvirt domain xml using specified 'Domain' value as
 -- 'GingerContext' lookup source.
-genDomainXml :: MonadIO m => Domain -> F.FilePath -> m (Either ParserError T.Text)
-genDomainXml d src  = genXml (domainLookup d) src
+genDomainXml :: MonadIO m => Domain -> F.FilePath -> m T.Text
+genDomainXml d src  = do
+    r <- genXml (domainLookup d) src
+    either (throw . XmlGenError) return r
 

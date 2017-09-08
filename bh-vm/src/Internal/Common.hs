@@ -13,7 +13,13 @@ import           Data.Yaml.Aeson
 import           Control.Applicative
 import           Control.Arrow
 import           Control.Monad.IO.Class
+import           Control.Exception
+import           Control.Monad.Managed
 import qualified Filesystem.Path.CurrentOS  as F
+import           System.Directory (getTemporaryDirectory)
+import           Turtle (Text, writeTextFile, mktempfile)
+
+import           System.Libvirt.Types
 
 
 -- * Operatins over tuples.
@@ -67,8 +73,17 @@ notEmpty :: (Eq a, Monoid a) => a -> Bool
 notEmpty            = not . (mempty ==)
 
 -- | Add filepath to exception returned by 'decodeFileEither'.
-decodeFileEitherF :: (MonadIO m, FromJSON a) =>
-                     F.FilePath -> m (Either (F.FilePath, ParseException) a)
-decodeFileEitherF f = either (\e -> Left (f, e)) Right <$>
-                       (liftIO . decodeFileEither . F.encodeString $ f)
+decodeFileEither' :: (MonadIO m, FromJSON a) => F.FilePath -> m a
+decodeFileEither' f = do
+    r <- liftIO . decodeFileEither . F.encodeString $ f
+    either (\e -> throw (YamlParseError f e)) return r
+
+-- | Create temporary file in a safe way (in 'MonadManaged'), write 'Text' to
+-- it and return its filename.
+writeTempFile :: MonadManaged m => Text -> Text -> m F.FilePath
+writeTempFile n c   = do
+    tmp <- liftIO getTemporaryDirectory
+    tf  <- mktempfile (F.decodeString tmp) n
+    liftIO $ writeTextFile tf c
+    return tf
 

@@ -49,7 +49,8 @@ library:
         - System.Libvirt.Template
         - System.Libvirt.Types
         - System.Libvirt.XML
-        - BH.System.Libvirt.Types
+        - System.Libvirt.IP
+        - System.Libvirt.Config
         - BH.System.Libvirt
         - Sgf.Data.Generics.Aliases
         - Sgf.Data.Generics.Schemes

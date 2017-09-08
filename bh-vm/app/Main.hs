@@ -13,7 +13,7 @@ import Control.Monad
 
 import Pathes
 import System.Libvirt.Types
-import BH.System.Libvirt.Types
+import System.Libvirt.Config
 import BH.System.Libvirt
 
 #if LOCAL
@@ -106,7 +106,7 @@ options             = Config
 
 main :: IO ()
 main                = join . execParser $
-    info (helper <*> (runP <$> options <*> pure defineVm))
+    info (helper <*> (runP <$> options <*> pure addVm))
     (  fullDesc
     <> header "General program title/description"
     <> progDesc "What does this thing do?"

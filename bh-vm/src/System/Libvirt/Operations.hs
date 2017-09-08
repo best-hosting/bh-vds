@@ -17,8 +17,10 @@ module System.Libvirt.Operations
     , virshDumpXml
     , virshVolDumpXml
     , virshVolCreate
+    , virshVolDelete
     , virshVolPath
     , virshDefine
+    , virshUndefine
     )
   where
 
@@ -28,6 +30,7 @@ import           TextShow (showt)
 import           Control.Monad.Except
 import           Turtle
 import           Control.Foldl (list)
+import           Control.Exception
 import           Control.Monad.Managed
 import           System.Directory
 
@@ -92,16 +95,23 @@ virshVolDumpXml p   = strict $ invirsh  [ "vol-dumpxml"
                                         empty
 
 -- | @virsh vol-create@
-virshVolCreate :: MonadManaged m =>
-                    Volume -> Text -> m ()
-virshVolCreate Volume{..} t = do
-    tmp <- liftIO getTemporaryDirectory
-    tf  <- mktempfile (F.decodeString tmp) "virshVolCreate"
-    liftIO $ writeTextFile tf t
+virshVolCreate :: MonadIO m => Volume -> F.FilePath -> m Volume
+virshVolCreate v@Volume{..} xf  = do
     sh $ virsh
             [ "vol-create"
             , "--pool", showt (fromLast volPool)
-            , pack (F.encodeString tf)
+            , pack (F.encodeString xf)
+            ]
+            empty
+    return v
+
+-- | @virsh vol-delete@
+virshVolDelete :: MonadIO m => Volume -> m ()
+virshVolDelete Volume{..}   =
+    sh $ procs "virsh"
+            [ "vol-delete"
+            , "--pool", showt (fromLast volPool)
+            , showt volName
             ]
             empty
 
@@ -118,12 +128,12 @@ virshVolPath Volume{..} = fmap (fromText . dropWhileEnd (== '\n')) . strict $
         empty
 
 -- | @virsh define@
-virshDefine :: MonadManaged m => Domain -> Text -> m ()
-virshDefine _ t     = do
-    -- FIXME: Wrapper around `getTemporaryDirectory` and `mktempfile` and,
-    -- probably, `writeTextFile` ?
-    tmp <- liftIO getTemporaryDirectory
-    tf  <- mktempfile (F.decodeString tmp) "virshVolCreate"
-    liftIO $ writeTextFile tf t
-    sh $ virsh ["define", pack (F.encodeString tf)] empty
+virshDefine :: MonadIO m => Domain -> F.FilePath -> m Domain
+virshDefine d xf    = do
+    sh $ virsh ["define", pack (F.encodeString xf)] empty
+    return d
+
+-- | @virsh undefine@
+virshUndefine :: MonadIO m => Domain -> m ()
+virshUndefine Domain{..} = sh $ virsh ["undefine", showt name] empty
 
