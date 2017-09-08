@@ -13,7 +13,7 @@ import Control.Monad
 
 import Pathes
 import System.Libvirt.Types
-import BH.System.Libvirt.Types
+import System.Libvirt.Config
 import BH.System.Libvirt
 
 #if LOCAL

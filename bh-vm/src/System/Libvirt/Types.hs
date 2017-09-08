@@ -429,7 +429,7 @@ optionA             = A.option mempty
 -- | Combined error type, wrapping parser and libvirt errors.
 data VmError        = XmlGenError G.ParserError
                     | YamlParseError F.FilePath ParseException
-                    | LibvirtError T.Text
+                    | LibvirtError String
                     | UnknownError TypeRep
   deriving (Show)
 

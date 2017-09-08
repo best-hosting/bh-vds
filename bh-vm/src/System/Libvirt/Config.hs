@@ -3,16 +3,15 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- |
--- Module: BH.System.Libvirt.Types
+-- Module: System.Libvirt.Config
 --
 
-module BH.System.Libvirt.Types
+module System.Libvirt.Config
     (
     -- * Main.
     --
     -- $main
-      IPMap
-    , P
+      P
     , runP
     , PState (..)
     , defPState
@@ -29,39 +28,19 @@ module BH.System.Libvirt.Types
   where
 
 import qualified Data.Text                  as T
-import qualified Data.Text.IO               as T
 import           TextShow
 import           Control.Monad.Reader
 import           Control.Monad.Except
 import qualified Filesystem.Path.CurrentOS  as F
-import qualified Data.Map                   as M
-import qualified Data.Set                   as S
 import           Control.Monad.State
 import           Control.Monad.Managed
 import           Data.Yaml.Aeson
 
 import System.Libvirt.Types
+import System.Libvirt.IP
 import System.Libvirt.Template
 
 -- $main
-
--- | Map from 'IP' to set of 'Domain'-s using it.
-type IPMap          = M.Map IP (S.Set Domain)
-
--- | Convert 'IP' map to 'Text' map. Needed for writing 'IPMap' to json.
-writeIPMap :: M.Map IP a -> M.Map T.Text a
-writeIPMap m    = M.foldrWithKey go M.empty m
-  where
-    go :: IP -> a -> M.Map T.Text a -> M.Map T.Text a
-    go x d zm   = M.insert (showt x) d zm
-
--- | Convert 'Text' map to 'IP' map. Needed for reading 'IPMap' from json.
-parseIPMap :: M.Map T.Text a -> M.Map IP a
-parseIPMap m    = M.foldrWithKey go M.empty m
-  where
-    go :: T.Text -> a -> M.Map IP a -> M.Map IP a
-    go x d zm   = either (const zm) (\y -> M.insert y d zm)
-                    . parseIP $ x
 
 -- | Main monad.
 type P a    = StateT PState (ReaderT Config (ExceptT VmError Managed)) a
@@ -75,7 +54,7 @@ runP cf mx          = runManaged $ do
       Left (YamlParseError f pe) -> putStrLn $
         "Yaml parse error in file '" ++ F.encodeString f ++ "':\n"
             ++ prettyPrintParseException pe
-      Left (LibvirtError er)    -> T.putStrLn er
+      Left (LibvirtError er)    -> putStrLn er
       Left (UnknownError t)     -> print $ "Unknown Error type: " ++ show t
       Right _ -> return ()
 
@@ -124,12 +103,12 @@ instance FromJSON SystemConf where
     parseJSON       = withObject "SystemConf" $ \o -> SystemConf
                         <$> o .: "volume"
                         <*> o .: "domain"
-                        <*> (parseIPMap <$> o .: "ipmap")
+                        <*> o .: "ipmap"
 instance ToJSON SystemConf where
     toJSON SystemConf{..}   = object $
                                 [ "volume"  .= sysVolume
                                 , "domain"  .= sysDomain
-                                , "ipmap"   .= writeIPMap sysIpMap
+                                , "ipmap"   .= sysIpMap
                                 ]
 
 -- | Domain settings required by a plan.

@@ -38,30 +38,14 @@ import           Data.Yaml.Aeson
 import           System.Libvirt.Types
 import           System.Libvirt.XML
 import           System.Libvirt.Template
+import           System.Libvirt.IP
 import           System.Libvirt.Operations
-import           BH.System.Libvirt.Types
+import           System.Libvirt.Config
 
 import           Internal.Common
 
 
 -- $operations
-
--- | Read all domains from @virsh@ and build a 'S.Set'.
-buildDomSet :: MonadIO m => m (S.Set Domain)
-buildDomSet         = virshListAll >>= foldM go S.empty
-  where
-    --go :: S.Set Domain -> Name -> m (S.Set Domain)
-    go zs n         = do
-        c <- virshDumpXml n
-        d <- initDomain virshVolDumpXml c
-        return (S.insert d zs)
-
--- | Add domains from a 'S.Set' to an 'IPMap'.
-buildIPMap :: IPMap -> S.Set Domain -> IPMap
-buildIPMap z0       = S.fold (\d -> M.insertWith S.union
-                                                 (fromLast (ip d))
-                                                 (S.singleton d))
-                             z0
 
 -- | Merge 'SystemConf' into initial 'Domain' value (probably, the result of
 -- summing 'PlanConf' and 'OsConf').
@@ -76,7 +60,7 @@ mergeConfigs dn SystemConf{..} d0 =
               }
     -- I'm interested only in IP addresses. List of domains, which use them,
     -- i'll rescan later.
-    in  PState{domain = d', ipMap = M.map (const S.empty) sysIpMap}
+    in  PState{domain = d', ipMap = IPMap . M.map (const S.empty) . getIPMap $ sysIpMap}
   where
     addVolNames :: Volume -> Name
     addVolNames v   = dn +++ volName sysVolume +++ volName v
@@ -115,7 +99,7 @@ defineVm            = do
     liftIO $ encodeFile "ipmap0.yaml" scf{sysIpMap = ipMap0}
 
     dset <- buildDomSet
-    let ipm = buildIPMap ipMap0 dset
+    let ipm = getIPMap $ buildIPMap ipMap0 dset
         usedIPs = M.filter (not . S.null) ipm
         freeIPs = M.filter S.null ipm
     when (M.null freeIPs) $ error "No free IPs."
