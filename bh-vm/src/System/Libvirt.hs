@@ -132,6 +132,7 @@ createDomain        = do
     tf <- writeTempFile "createDomain" xml
     d  <- using $ managed $
             bracketOnError (virshDefine domain tf) virshUndefine
+    virshAutostart d
     modify (\ps -> ps{domain = d})
 
 -- | Read configs and define a 'Domain' in libvirt.

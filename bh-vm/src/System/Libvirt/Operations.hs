@@ -21,6 +21,7 @@ module System.Libvirt.Operations
     , virshVolPath
     , virshDefine
     , virshUndefine
+    , virshAutostart
     )
   where
 
@@ -135,5 +136,8 @@ virshDefine d xf    = do
 
 -- | @virsh undefine@
 virshUndefine :: MonadIO m => Domain -> m ()
-virshUndefine Domain{..} = sh $ virsh ["undefine", showt name] empty
+virshUndefine Domain{..}    = sh $ virsh ["undefine", showt name] empty
+
+virshAutostart :: MonadIO m => Domain -> m ()
+virshAutostart Domain{..}   = sh $ virsh ["autostart", showt name] empty
 
