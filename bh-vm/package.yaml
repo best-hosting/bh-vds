@@ -51,7 +51,7 @@ library:
         - System.Libvirt.XML
         - System.Libvirt.IP
         - System.Libvirt.Config
-        - BH.System.Libvirt
+        - System.Libvirt
         - Sgf.Data.Generics.Aliases
         - Sgf.Data.Generics.Schemes
         - Sgf.Text.XML.Light.Proc

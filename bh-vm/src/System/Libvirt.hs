@@ -3,11 +3,11 @@
 {-# LANGUAGE RecordWildCards    #-}
 
 -- |
--- Module: BH.System.Libvirt
+-- Module: System.Libvirt
 --
 -- Main operations provided by @bh-vm@.
 
-module BH.System.Libvirt
+module System.Libvirt
     (
     -- * Basic operations.
     --

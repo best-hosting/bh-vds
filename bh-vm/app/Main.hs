@@ -14,7 +14,7 @@ import Control.Monad
 import Pathes
 import System.Libvirt.Types
 import System.Libvirt.Config
-import BH.System.Libvirt
+import System.Libvirt
 
 #if LOCAL
 prefix :: FilePath
