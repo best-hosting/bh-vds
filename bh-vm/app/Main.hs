@@ -24,31 +24,6 @@ import Build.Pathes (prefix)
 #endif
 
 
--- Read system values and cmd.
---
---  cmd     = name + ip + tariff + template + arch (?)
---  tariff  = memory + size
---  system  = pool + bridge
---
---  Overwrite: cmd > tariff > system
---
---  map template --> cd iso path
---
--- virsh vol-create besthost133 gen-vol.xml
--- virsh vol-path vm-abc --pool besthost133  ==> volpath
--- virsh define gen-dom.xml
--- attach install cd.
---
--- Checks:
---
---  - volpath not used by any other vm. Use readlink. Path exists - ask.
---  - ip not used by any other vm. Warn about vms without explicit ip spec.
---  Fix plain text db: virsh --> db.
---
--- Assume: default net (instead of specifying bridge directly) and default
--- pool (name it default). Then i may omit system config altogether.
-
-
 -- | Use matcher function to match against supplied 'String' and, if match
 -- suceeded, return full path to config file with that name. Note, that file
 -- existence is _not_ checked.
@@ -72,9 +47,9 @@ matchConf f t       = let (d, ps) = f prefix in
                      then (t <.> takeExtension p) : ws else ws
         )
 
--- | Command-line options.
-options :: Parser Config
-options             = Config
+-- | Options for @add@ command.
+addOptions :: Parser Config
+addOptions          = Config
     <$> option (eitherReader (matchConf planConfFilePat))
             (   long "plan"
             <>  short 'p'
@@ -94,19 +69,24 @@ options             = Config
             (   long "name"
             <>  short 'n'
             <>  metavar "NAME"
-            <>  help "New vm name."
+            <>  help "New domain name."
             )
     <*> (option (eitherReader (fmap Just . parseIP . T.pack))
             (   long "ip"
             <>  short 'i'
             <>  metavar "IP"
-            <>  help "IP address for new vm."
+            <>  help "IP address for new domain."
             )
         <|> pure Nothing)
 
 main :: IO ()
-main                = join . execParser $
-    info (helper <*> (runP <$> options <*> pure addVm))
+main                = join . execParser $ info
+    ( helper <*> hsubparser
+        ( command "add" $ info
+            (runP <$> addOptions <*> pure addVm)
+            (progDesc "Add new libvirt domain.")
+        )
+    )
     (  fullDesc
     <> header "General program title/description"
     <> progDesc "What does this thing do?"
