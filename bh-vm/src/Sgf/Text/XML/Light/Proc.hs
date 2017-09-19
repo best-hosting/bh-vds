@@ -62,7 +62,7 @@ queryXMLPath'       = queryXMLPath mappend
 
 
 -- | 'onlyText' version concatenating all text from a list
--- of XML content.
+-- of XML contents.
 onlyText' :: [Content] -> String
 onlyText'           = concatMap cdData . onlyText
 

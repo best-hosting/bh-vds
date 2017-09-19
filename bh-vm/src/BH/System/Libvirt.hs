@@ -9,27 +9,24 @@
 
 module BH.System.Libvirt
     (
-    -- * Operations.
+    -- * Basic operations.
     --
     -- $operations
       readSystemConf
     , writeSystemConf
-    , mergeConfigs
-    , loadConfigs
-    , findIP
     , acquireIP
+
+    -- * 'managed' libvirt operations.
+    --
+    -- $managed
+    , loadConfigs
     , createVolume
+    , createDomain
 
     -- * Main.
     --
     -- $main
     , addVm
-
-    -- * Libvirt operations in 'MonadManaged'.
-    --
-    -- $managed
-    , createVolume
-    , createDomain
     )
   where
 
@@ -85,37 +82,20 @@ writeSystemConf scfFile scf = liftIO $ do
     encodeFile new scf
     renameFile new old
 
--- | Merge 'SystemConf' into initial 'Domain' value (probably, the result of
--- summing 'PlanConf' and 'OsConf').
-mergeConfigs :: Name -> SystemConf -> Domain -> PState
-mergeConfigs dn SystemConf{..} d0 =
-    -- Note, that 'volName' from 'sysDomain' is appended /directly/ (without
-    -- separators) to 'volName' from 'd0'.
-    let d = sysDomain <> d0
-        d' = d{ name = dn
-              , volume = (sysVolume <> volume d)
-                            {volName = addVolNames (volume d)}
-              }
-    -- I'm interested only in IP addresses. List of domains, which use them,
-    -- i'll rescan later.
-    in  PState{domain = d', ipMap = sysIpMap}
-  where
-    addVolNames :: Volume -> Name
-    addVolNames v   = dn +++ volName sysVolume +++ volName v
-    (+++) :: Name -> Name -> Name
-    x +++ y         = maybeSep "-" x y
+-- | Acquire 'IP' for a 'domain'.
+acquireIP :: P ()
+acquireIP           = do
+    cf@Config{..}   <- ask
+    PState{..}      <- get
+    i <- findIP sysConfFile domIp ipMap
+    modify (\ps -> ps{domain = domain{ip = toLast i}})
 
--- | Append 'Monoid' values adding separator between them, if /both/ are not
--- 'mempty'.
-maybeSep :: (Eq a, Monoid a) => a -> a -> a -> a
-maybeSep s x y
-  | x == mempty     = y
-  | y == mempty     = x
-  | otherwise       = x <> s <> y
 
--- | Load all configs.
--- Note: at the end i /rescan/ 'IPMap' and overwrite 'sysConfFile'. I.e. i
--- don't use internal 'IPMap' state and just ask @libvirt@.
+-- $managed
+
+-- | Load all configs and at the end /rescan/ 'IPMap' and overwrite
+-- 'sysConfFile'. I.e. i don't use internal 'IPMap' state and just ask
+-- @libvirt@.
 loadConfigs :: P ()
 loadConfigs         = do
     Config{..}  <- ask
@@ -125,38 +105,6 @@ loadConfigs         = do
     PlanConf{..} <- decodeFileEither' planConfFile
     OsConf{..}   <- decodeFileEither' osConfFile
     put (mergeConfigs domName scf (planDomain <> osDomain))
-
-
--- | Note, 'findIP' does /not/ update information about returned 'IP' in
--- 'IPMap'. Because.. domain definition may not be complete yet.
-findIP :: MonadIO m => Config -> IPMap -> m IP
-findIP Config{..} ipm
-  | not (null freeIPs)  =
-        case domIp of
-          Just ip
-            | M.member ip usedIPs
-                        -> throw (IPAlreadyInUse ip (usedBy ip))
-            | ip `notElem` freeIPs
-                        -> throw (IPNotAvailable ip sysConfFile)
-            | otherwise -> return ip
-          Nothing       -> return (head freeIPs)
-  | otherwise           =  throw (NoFreeIPs sysConfFile)
-  where
-    usedIPs :: M.Map IP (S.Set Domain)
-    usedIPs         = M.filter (not . S.null) (getIPMap ipm)
-    freeIPs :: [IP]
-    freeIPs         = M.keys (M.filter S.null (getIPMap ipm))
-    usedBy :: IP -> [Domain]
-    usedBy          = maybe [] S.toList . flip M.lookup usedIPs
-
-acquireIP :: P ()
-acquireIP           = do
-    cf@Config{..}   <- ask
-    PState{..}      <- get
-    i <- findIP cf ipMap
-    modify (\ps -> ps{domain = domain{ip = toLast i}})
-
--- $managed
 
 -- | Create libvirt volume in a safe way: if later computation fails, created
 -- volume will be deleted.

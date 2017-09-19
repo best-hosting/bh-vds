@@ -34,7 +34,7 @@ import           System.Libvirt.Types
 import           Internal.Common
 
 
--- | Convert 'ParserError' to an error message.
+-- | Convert ginger 'ParserError' to an error message.
 showParserError :: Source -> ParserError -> String
 showParserError src ParserError{..} =
     let e  = "Ginger parser error" ++ showFileName ++ ": " ++ peErrorMessage
@@ -51,7 +51,7 @@ showParserError src ParserError{..} =
               x : _ -> [x, replicate (c - 1) ' ' ++ "^"]
     showErrorPos (_, _) = []
 
--- | Use 'IncludeResolver' to obtain source file content and convert
+-- | Use 'IncludeResolver' to obtain source file content and convert ginger
 -- 'ParserError' to an error message.
 printParserError :: Monad m => IncludeResolver m -> ParserError -> m String
 printParserError res pe = do

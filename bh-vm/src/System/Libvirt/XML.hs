@@ -7,7 +7,7 @@
 -- |
 -- Module: System.Libvirt.XML
 --
--- Read libvirt XML and parse it into a "System.Libvirt.Types" types.
+-- Read and parse libvirt XML.
 
 module System.Libvirt.XML
     ( volumeXml

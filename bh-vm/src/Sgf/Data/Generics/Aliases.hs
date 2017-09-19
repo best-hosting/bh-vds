@@ -51,9 +51,12 @@ instance Functor GenericRecQ where
 foreverQ :: GenericQ r -> GenericRecQ r
 foreverQ f          = RQ $ \x -> (f x, foreverQ f)
 
--- | Operator for building recursive query chains.  @extRecQ g cont k@ will
--- call function @k@ and return @cont@ as the next 'GenericRecQ' query, if
--- argument type matches. Otherwise it will call default query @g@ and
+-- | Operator for building recursive query chains.
+--
+-- >    extRecQ g cont k
+--
+-- will call function @k@ and return @cont@ as the next 'GenericRecQ' query,
+-- if argument type matches. Otherwise it will call default query @g@ and
 -- /rebuild/ itself as the next query.  Versions with predefined default query
 -- may be used to build chains of queries, which should be called one after
 -- another (see 'extRecL' and 'extRecS').
@@ -65,11 +68,15 @@ extRecQ g cont k    = RQ $      (\x -> (g x, extRecQ g cont k))
 extRecQ' :: (Monoid r, Typeable b) => GenericRecQ r -> (b -> r) -> GenericRecQ r
 extRecQ'            = extRecQ (const mempty)
 
--- | Make recursive query.  @mkRecQ def k@ will call function @k@ and expect
--- it to return next 'GenericRecQ' query as well, if argument type matches.
--- Otherwise, it will call default query @g@ and /rebuild/ itself as the next
--- query.  It may be used, when function @g@ needs to decide, which next
--- 'GenericRecQ' query to use, depending on its argument.
+-- | Make recursive query.
+--
+-- >    mkRecQ def k
+--
+-- will call function @k@ and expect it to return next 'GenericRecQ' query as
+-- well, if argument type matches.  Otherwise, it will call default query @g@
+-- and /rebuild/ itself as the next query.  It may be used, when function @g@
+-- needs to decide, which next 'GenericRecQ' query to use, depending on its
+-- argument.
 mkRecQ :: Typeable b => GenericQ r -> (b -> (r, GenericRecQ r)) -> GenericRecQ r
 mkRecQ g k          = RQ $ (\x -> (g x, mkRecQ g k)) `extQ` k
 

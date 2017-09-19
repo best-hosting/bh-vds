@@ -1,42 +1,31 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving     #-}
 
+-- |
+-- Module: System.Libvirt.IP
+--
+-- Functions working with domain 'IP'-s.
+
 module System.Libvirt.IP
     (
-      IPMap (..)
-    , buildDomSet
+      buildDomSet
     , buildIPMap
+    , findIP
     )
   where
 
 import qualified Data.Text                  as T
 import           TextShow
 import           Control.Monad.Reader
+import           Control.Exception
 import qualified Data.Map                   as M
 import qualified Data.Set                   as S
 import           Data.Yaml.Aeson
+import qualified Filesystem.Path.CurrentOS  as F
 
-import Internal.Common
-import System.Libvirt.Types
-import System.Libvirt.XML
-import System.Libvirt.Operations
-
--- | Map from 'IP' to set of 'Domain'-s using it.
-newtype IPMap       = IPMap {getIPMap :: M.Map IP (S.Set Domain)}
-  deriving (Show, Monoid)
-
--- | Convert 'Text' map to 'IP' map. Needed for reading 'IPMap' from json.
-instance FromJSON IPMap where
-    parseJSON       = fmap parseIPMap . parseJSON
-      where
-        parseIPMap :: M.Map T.Text (S.Set Domain) -> IPMap
-        parseIPMap  = IPMap . M.foldrWithKey go M.empty
-          where
-            --go :: T.Text -> a -> M.Map IP a -> M.Map IP a
-            go x d zm   = either (const zm) (\y -> M.insert y d zm)
-                            . parseIP $ x
-
-instance ToJSON IPMap where
-    toJSON          = toJSON . M.mapKeys showt . getIPMap
+import           Internal.Common
+import           System.Libvirt.Types
+import           System.Libvirt.XML
+import           System.Libvirt.Operations
 
 -- | Read all domains from @virsh@ and build a 'S.Set'.
 buildDomSet :: MonadIO m => m (S.Set Domain)
@@ -54,4 +43,27 @@ buildIPMap z0       = IPMap . S.fold (\d -> M.insertWith S.union
                                                 (fromLast (ip d))
                                                 (S.singleton d))
                              (getIPMap z0)
+
+-- | Find an unused 'IP' or check that requested 'IP' is available. Note,
+-- 'findIP' does /not/ update information about returned 'IP' in 'IPMap'.
+-- Because domain definition may not be complete yet.
+findIP :: MonadIO m => F.FilePath -> Maybe IP -> IPMap -> m IP
+findIP sysConfFile domIp ipm
+  | not (null freeIPs)  =
+        case domIp of
+          Just ip
+            | M.member ip usedIPs
+                        -> throw (IPAlreadyInUse ip (usedBy ip))
+            | ip `notElem` freeIPs
+                        -> throw (IPNotAvailable ip sysConfFile)
+            | otherwise -> return ip
+          Nothing       -> return (head freeIPs)
+  | otherwise           =  throw (NoFreeIPs sysConfFile)
+  where
+    usedIPs :: M.Map IP (S.Set Domain)
+    usedIPs         = M.filter (not . S.null) (getIPMap ipm)
+    freeIPs :: [IP]
+    freeIPs         = M.keys (M.filter S.null (getIPMap ipm))
+    usedBy :: IP -> [Domain]
+    usedBy          = maybe [] S.toList . flip M.lookup usedIPs
 

@@ -6,7 +6,7 @@
 -- |
 -- Module: System.Libvirt.Operations
 --
--- Different basic `libvirt` operations (implemented as calls to `virsh`).
+-- Basic @libvirt@ operations (implemented as calls to @virsh@).
 
 module System.Libvirt.Operations
     (
@@ -117,8 +117,8 @@ virshVolDelete Volume{..}   =
 
 -- | @virsh vol-path@
 --
--- Note: all trailing newlines are dropped, so, generally, newlines in
--- filenames are /not/ supported.
+-- Note: all trailing newlines are dropped from @virsh vol-path@ output, so,
+-- generally, newlines in filenames are /not/ supported.
 virshVolPath :: MonadIO m => Volume -> m F.FilePath
 virshVolPath Volume{..} = fmap (fromText . dropWhileEnd (== '\n')) . strict $
     invirsh

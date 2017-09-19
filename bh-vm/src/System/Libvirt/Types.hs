@@ -9,11 +9,19 @@
 --
 
 module System.Libvirt.Types
-    ( Name
+    (
+    -- * Generic-purpose types.
+    --
+    -- $generic
+      Name
     , parseName
     , Size
     , parseSize
     , Path (..)
+
+    -- * Libvirt XML Volume representation.
+    --
+    -- $volume
     , Pool (..)
     , Volume (..)
     , volNameL
@@ -21,6 +29,9 @@ module System.Libvirt.Types
     , volPathL
     , volPoolL
 
+    -- * Libvirt XML Domain representation.
+    --
+    -- $domain
     , Arch
     , parseArch
     , VCpu
@@ -38,20 +49,27 @@ module System.Libvirt.Types
     , bridgeL
     , ipL
 
+    -- * Library context types.
+    --
+    -- $lib
     , VmError (..)
     , toVmError
     , liftVmError
     , throwVmError
+
+    , IPMap (..)
     )
   where
 
 import           Data.Maybe
-import qualified Data.String                as S
+import qualified Data.String                as ST
 import           Data.Monoid
 import           Data.Generics
 import qualified Text.Ginger                as G
 import           Data.Yaml.Aeson
 import           Data.Aeson.Types
+import qualified Data.Map                   as M
+import qualified Data.Set                   as S
 import qualified Data.Attoparsec.Text       as A
 import qualified Data.Text                  as T
 import           TextShow
@@ -62,6 +80,8 @@ import qualified Filesystem.Path.CurrentOS  as F
 
 import           Internal.Control.Lens
 
+
+-- $generic
 
 -- | Type for names. Use 'parseName' for converting from text and 'showt' for
 -- converting back to text.
@@ -78,7 +98,7 @@ parseName           = Right . Name
 -- them.
 instance TextShow Name where
     showb           = fromText . getName
-instance S.IsString Name where
+instance ST.IsString Name where
     fromString      = either error id . parseName . T.pack
 instance FromJSON Name where
     parseJSON v     = parseJSON v >>= either fail pure . parseName
@@ -148,12 +168,15 @@ instance Monoid Path where
       | otherwise   = Path (x `mappend` y)
 instance TextShow Path where
     showb           = fromString . F.encodeString . getPath
-instance S.IsString Path where
-    fromString      = Path . S.fromString
+instance ST.IsString Path where
+    fromString      = Path . ST.fromString
 instance FromJSON Path where
     parseJSON v     = Path . F.decodeString <$> parseJSON v
 instance ToJSON Path where
     toJSON          = toJSON . F.encodeString . getPath
+
+
+-- $volume
 
 -- | Type for libvirt storage pool.
 newtype Pool        = Pool {poolName :: Name}
@@ -216,8 +239,10 @@ volPathL f z@Volume {volPath = x}   = fmap (\x' -> z{volPath = x'}) (f x)
 volPoolL :: LensA Volume (Last Pool)
 volPoolL f z@Volume {volPool = x}   = fmap (\x' -> z{volPool = x'}) (f x)
 
--- | Type for architecture. Use 'parseArch' for converting from text and
--- 'showt' for converting back to text.
+-- $domain
+
+-- | Type for domain's architecture. Use 'parseArch' for converting from text
+-- and 'showt' for converting back to text.
 newtype Arch        = Arch {getArch :: Last T.Text}
   deriving (Show, Typeable, Data, Eq, Ord, Monoid)
 
@@ -235,9 +260,9 @@ instance FromJSON Arch where
 instance ToJSON Arch where
     toJSON          = toJSON . showt
 
--- | Type for libvirt @vcpu@ definition inside domain. Use 'parseVCpu' for
--- converting from text, 'fromInteger' for converting from a number and
--- 'toInteger' for converting to a number.
+-- | Type for number of CPUs assigned to domain (@vcpu@ libvirt domain
+-- element).  Use 'parseVCpu' for converting from text, 'fromInteger' for
+-- converting from a number and 'toInteger' for converting to a number.
 newtype VCpu        = VCpu {getVCpu :: Sum Integer}
   deriving (Show, Typeable, Data, Eq, Ord, Monoid)
 
@@ -285,7 +310,7 @@ instance FromJSON VCpu where
 instance ToJSON VCpu where
     toJSON          = toJSON . toInteger
 
--- | Type for libvirt network @interface@ definition inside domain.
+-- | Type for domain's network @interface@.
 newtype Interface   = Interface {intName :: Name}
   deriving (Show, Typeable, Data, Eq, Ord, Monoid)
 
@@ -294,7 +319,7 @@ instance FromJSON Interface where
 instance ToJSON Interface where
     toJSON Interface{..}    = toJSON intName
 
--- | Type for IP address.
+-- | Type for IP addresses.
 data IP             = IP    { _octet1 :: Sum Int
                             , _octet2 :: Sum Int
                             , _octet3 :: Sum Int
@@ -362,7 +387,7 @@ memoryL f z@Domain {memory = x} = fmap (\x' -> z{memory = x'}) (f x)
 -- | Lens to number of cpus used by 'Domain'.
 vcpuL :: LensA Domain (Last VCpu)
 vcpuL   f z@Domain {vcpu = x}   = fmap (\x' -> z{vcpu = x'}) (f x)
--- | Lens to path of cdrom image attached to 'Domain'.
+-- | Lens to path to cdrom image attached to 'Domain'.
 cdromL :: LensA Domain (First Path)
 cdromL  f z@Domain {cdrom = x}  = fmap (\x' -> z{cdrom = x'}) (f x)
 -- | Lens to 'Volume' of 'Domain'.
@@ -371,7 +396,7 @@ volumeL f z@Domain {volume = x} = fmap (\x' -> z{volume = x'}) (f x)
 -- | Lens to bridge 'Interface' used by 'Domain'.
 bridgeL :: LensA Domain (Last Interface)
 bridgeL f z@Domain {bridge = x} = fmap (\x' -> z{bridge = x'}) (f x)
--- | Lens to 'IP' address of 'Domain'.
+-- | Lens to 'IP' address assigned to 'Domain'.
 ipL :: LensA Domain (Last IP)
 ipL     f z@Domain {ip = x}     = fmap (\x' -> z{ip = x'}) (f x)
 
@@ -428,6 +453,8 @@ t .=? x
 optionA :: (Monoid a, Alternative f) => f a -> f a
 optionA             = A.option mempty
 
+-- $lib
+
 -- | Combined error type, wrapping parser and libvirt errors.
 data VmError        = XmlGenError G.ParserError
                     | YamlParseError F.FilePath ParseException
@@ -456,4 +483,23 @@ liftVmError m       = m >>= either (throwError . toVmError) return
 -- | Convert error in 'Either' to 'VmError' and throw an exception.
 throwVmError :: (MonadIO m, Typeable e) => (Either e a) -> m a
 throwVmError        = either (throw . toVmError) return
+
+
+-- | Map from 'IP' to set of 'Domain'-s using it.
+newtype IPMap       = IPMap {getIPMap :: M.Map IP (S.Set Domain)}
+  deriving (Show, Monoid)
+
+-- | Convert 'Text' map to 'IP' map. Needed for reading 'IPMap' from json.
+instance FromJSON IPMap where
+    parseJSON       = fmap parseIPMap . parseJSON
+      where
+        parseIPMap :: M.Map T.Text (S.Set Domain) -> IPMap
+        parseIPMap  = IPMap . M.foldrWithKey go M.empty
+          where
+            --go :: T.Text -> a -> M.Map IP a -> M.Map IP a
+            go x d zm   = either (const zm) (\y -> M.insert y d zm)
+                            . parseIP $ x
+
+instance ToJSON IPMap where
+    toJSON          = toJSON . M.mapKeys showt . getIPMap
 

@@ -5,10 +5,11 @@
 -- |
 -- Module: System.Libvirt.Config
 --
+-- Library config.
 
 module System.Libvirt.Config
     (
-    -- * Main.
+    -- * Main context.
     --
     -- $main
       printVmError
@@ -25,9 +26,11 @@ module System.Libvirt.Config
     , SystemConf (..)
     , PlanConf (..)
     , OsConf (..)
+    , mergeConfigs
     )
   where
 
+import           Data.Monoid
 import qualified Data.Text                  as T
 import           TextShow
 import           Control.Monad.Reader
@@ -38,7 +41,6 @@ import           Control.Monad.Managed
 import           Data.Yaml.Aeson
 
 import System.Libvirt.Types
-import System.Libvirt.IP
 import System.Libvirt.Template
 
 
@@ -135,4 +137,32 @@ newtype PlanConf  = PlanConf {planDomain :: Domain}
 -- | Domain settings required by used OS.
 newtype OsConf      = OsConf {osDomain :: Domain}
   deriving (Show, FromJSON, ToJSON)
+
+-- | Merge 'SystemConf' into initial 'Domain' value (probably, the result of
+-- summing 'PlanConf' and 'OsConf').
+mergeConfigs :: Name -> SystemConf -> Domain -> PState
+mergeConfigs dn SystemConf{..} d0 =
+    -- Note, that 'volName' from 'sysDomain' is appended /directly/ (without
+    -- separators) to 'volName' from 'd0'.
+    let d = sysDomain <> d0
+        d' = d{ name = dn
+              , volume = (sysVolume <> volume d)
+                            {volName = addVolNames (volume d)}
+              }
+    -- I'm interested only in IP addresses. List of domains, which use them,
+    -- i'll rescan later.
+    in  PState{domain = d', ipMap = sysIpMap}
+  where
+    addVolNames :: Volume -> Name
+    addVolNames v   = dn +++ volName sysVolume +++ volName v
+    (+++) :: Name -> Name -> Name
+    x +++ y         = maybeSep "-" x y
+
+-- | Append 'Monoid' values adding separator between them, if /both/ are not
+-- 'mempty'.
+maybeSep :: (Eq a, Monoid a) => a -> a -> a -> a
+maybeSep s x y
+  | x == mempty     = y
+  | y == mempty     = x
+  | otherwise       = x <> s <> y
 
