@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving     #-}
 
 -- |
 -- Module: System.Libvirt.IP
@@ -13,13 +12,10 @@ module System.Libvirt.IP
     )
   where
 
-import qualified Data.Text                  as T
-import           TextShow
 import           Control.Monad.Reader
 import           Control.Exception
 import qualified Data.Map                   as M
 import qualified Data.Set                   as S
-import           Data.Yaml.Aeson
 import qualified Filesystem.Path.CurrentOS  as F
 
 import           Internal.Common
@@ -51,12 +47,12 @@ findIP :: MonadIO m => F.FilePath -> Maybe IP -> IPMap -> m IP
 findIP sysConfFile domIp ipm
   | not (null freeIPs)  =
         case domIp of
-          Just ip
-            | M.member ip usedIPs
-                        -> throw (IPAlreadyInUse ip (usedBy ip))
-            | ip `notElem` freeIPs
-                        -> throw (IPNotAvailable ip sysConfFile)
-            | otherwise -> return ip
+          Just x
+            | M.member x usedIPs
+                        -> throw (IPAlreadyInUse x (usedBy x))
+            | x `notElem` freeIPs
+                        -> throw (IPNotAvailable x sysConfFile)
+            | otherwise -> return x
           Nothing       -> return (head freeIPs)
   | otherwise           =  throw (NoFreeIPs sysConfFile)
   where

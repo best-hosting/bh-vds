@@ -61,6 +61,6 @@ nothingL f x        = fmap (const x) (f Nothing)
 
 -- | Lens to list head.
 headL :: LensA [a] a
-headL f []          = pure []
+headL _ []          = pure []
 headL f (x : xs)    = (: xs) <$> f x
 

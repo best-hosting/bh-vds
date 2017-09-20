@@ -139,9 +139,7 @@ instance Enum Size where
 instance Real Size where
     toRational      = toRational . toInteger
 instance Integral Size where
-    x `quotRem` y   = let x' = toInteger $ x
-                          y' = toInteger $ y
-                          (q, r) = x' `quotRem` y'
+    x `quotRem` y   = let (q, r) = toInteger x `quotRem` toInteger y
                       in  (fromInteger q, fromInteger r)
     toInteger       = getSum . getSize
 
@@ -295,9 +293,7 @@ instance Enum VCpu where
 instance Real VCpu where
     toRational      = toRational . toInteger
 instance Integral VCpu where
-    x `quotRem` y   = let x' = toInteger $ x
-                          y' = toInteger $ y
-                          (q, r) = x' `quotRem` y'
+    x `quotRem` y   = let (q, r) = toInteger x `quotRem` toInteger y
                       in  (fromInteger q, fromInteger r)
     toInteger       = getSum . getVCpu
 
@@ -450,8 +446,6 @@ t .=? x
   | x == mempty     = Nothing
   | otherwise       = Just (t .= x)
 
-optionA :: (Monoid a, Alternative f) => f a -> f a
-optionA             = A.option mempty
 
 -- $lib
 
@@ -481,7 +475,7 @@ liftVmError :: (Typeable e, MonadError VmError m) => m (Either e a) -> m a
 liftVmError m       = m >>= either (throwError . toVmError) return
 
 -- | Convert error in 'Either' to 'VmError' and throw an exception.
-throwVmError :: (MonadIO m, Typeable e) => (Either e a) -> m a
+throwVmError :: (MonadIO m, Typeable e) => Either e a -> m a
 throwVmError        = either (throw . toVmError) return
 
 

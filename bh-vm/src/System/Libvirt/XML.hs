@@ -1,6 +1,4 @@
 {-# LANGUAGE OverloadedStrings  #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes         #-}
 
@@ -50,7 +48,7 @@ volumeXml           = mkRecL vol `extRecL` pureQ (elN "volume")
     vol x
       | elN "capacity"  x   = next $ volSizeL `endParserQL` (fmap toLast . parseSize . onlyTextT)
       | elN "name"      x   = next $ volNameL `endParserQL` (parseName . onlyTextT)
-      | elN "target"    x   = next $ volDiskXml
+      | elN "target"    x   = next volDiskXml
       | otherwise           = stop mempty
 
 -- | Parse 'Volume' from an 'XmlSource' containing libvirt @volume@ xml.
@@ -110,7 +108,7 @@ domDevices x
   | elN "disk" x && elAttrVal (qn "device") "cdrom" x = next $
                           sourceFileXml (Endo . setA cdromL . toFirst . filePath)
   | elN "disk" x && elAttrVal (qn "device") "disk" x  = next $
-                          sourceDevXml (\y -> Endo $ setA volumeL (volDisk y))
+                          sourceDevXml (Endo . setA volumeL . volDisk)
   | otherwise           = stop mempty
   where
     volDisk :: String -> Volume

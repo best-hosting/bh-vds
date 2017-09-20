@@ -70,13 +70,13 @@ toFirst             = First . Just
 
 -- | Check, that a value is not 'mempty'.
 notEmpty :: (Eq a, Monoid a) => a -> Bool
-notEmpty            = not . (mempty ==)
+notEmpty            = (mempty /=)
 
 -- | Add filepath to exception returned by 'decodeFileEither'.
 decodeFileEither' :: (MonadIO m, FromJSON a) => F.FilePath -> m a
 decodeFileEither' f = do
     r <- liftIO . decodeFileEither . F.encodeString $ f
-    either (\e -> throw (YamlParseError f e)) return r
+    either (throw . YamlParseError f) return r
 
 -- | Create temporary file in a safe way (in 'MonadManaged'), write 'Text' to
 -- it and return its filename.

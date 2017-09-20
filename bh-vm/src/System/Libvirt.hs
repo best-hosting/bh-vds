@@ -35,9 +35,7 @@ import qualified Data.Text.IO           as T
 import           Control.Monad.Reader
 import           Data.Monoid
 import qualified Data.String            as S
-import           Control.Monad.Except
 import qualified Data.Map               as M
-import qualified Data.Set               as S
 import           Control.Monad.State
 import           Control.Exception
 import           Control.Monad.Managed
@@ -46,7 +44,6 @@ import qualified Filesystem.Path.CurrentOS  as F
 import           System.Directory
 
 import           System.Libvirt.Types
-import           System.Libvirt.XML
 import           System.Libvirt.Template
 import           System.Libvirt.IP
 import           System.Libvirt.Operations
@@ -85,8 +82,8 @@ writeSystemConf scfFile scf = liftIO $ do
 -- | Acquire 'IP' for a 'domain'.
 acquireIP :: P ()
 acquireIP           = do
-    cf@Config{..}   <- ask
-    PState{..}      <- get
+    Config{..}  <- ask
+    PState{..}  <- get
     i <- findIP sysConfFile domIp ipMap
     modify (\ps -> ps{domain = domain{ip = toLast i}})
 

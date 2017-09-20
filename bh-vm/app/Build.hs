@@ -145,7 +145,7 @@ build op@Options{..} args       = do
     needConfigs f   = do
         let (d, ps) = f srcConfDir
         fs <- getDirectoryFiles d ps
-        let rs = map ((replacePrefix srcConfDir (sysconfdir op) d) </>) fs
+        let rs = map (replacePrefix srcConfDir (sysconfdir op) d </>) fs
         need rs
 
 main :: IO ()

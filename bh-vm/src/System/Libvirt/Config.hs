@@ -124,7 +124,7 @@ instance FromJSON SystemConf where
                         <*> o .: "domain"
                         <*> o .: "ipmap"
 instance ToJSON SystemConf where
-    toJSON SystemConf{..}   = object $
+    toJSON SystemConf{..}   = object
                                 [ "volume"  .= sysVolume
                                 , "domain"  .= sysDomain
                                 , "ipmap"   .= sysIpMap

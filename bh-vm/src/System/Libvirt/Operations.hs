@@ -31,9 +31,6 @@ import           TextShow (showt)
 import           Control.Monad.Except
 import           Turtle
 import           Control.Foldl (list)
-import           Control.Exception
-import           Control.Monad.Managed
-import           System.Directory
 
 import           System.Libvirt.Types
 
@@ -45,7 +42,7 @@ import           Internal.Common
 -- | Call to @virsh@ do not expecting any output.
 virsh :: MonadIO m => [Text] -> Shell Line -> m ()
 #ifndef TEST
-virsh argv inp      = procs "virsh" argv inp
+virsh               = procs "virsh"
 #else
 virsh ("vol-create" : _) _  = return ()
 virsh ("define"     : _) _  = return ()
@@ -56,7 +53,7 @@ virsh argv               _  = error $
 -- | Call to @virsh@ expecting some output.
 invirsh :: [Text] -> Shell Line -> Shell Line
 #ifndef TEST
-invirsh argv inp    = inproc "virsh" argv inp
+invirsh             = inproc "virsh"
 #else
 invirsh ("list" : _) _
                     = select . textToLines $ "test4\ntest5"
@@ -130,9 +127,9 @@ virshVolPath Volume{..} = fmap (fromText . dropWhileEnd (== '\n')) . strict $
 
 -- | @virsh define@
 virshDefine :: MonadIO m => Domain -> F.FilePath -> m Domain
-virshDefine d xf    = do
+virshDefine dom xf    = do
     sh $ virsh ["define", pack (F.encodeString xf)] empty
-    return d
+    return dom
 
 -- | @virsh undefine@
 virshUndefine :: MonadIO m => Domain -> m ()
