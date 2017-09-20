@@ -46,6 +46,9 @@ virsh               = procs "virsh"
 #else
 virsh ("vol-create" : _) _  = return ()
 virsh ("define"     : _) _  = return ()
+virsh ("vol-delete" : _) _  = return ()
+virsh ("undefine"   : _) _  = return ()
+virsh ("autostart"  : _) _  = return ()
 virsh argv               _  = error $
     "virsh: Unsupported virsh options for test mode: " ++ show argv
 #endif
@@ -106,7 +109,7 @@ virshVolCreate v@Volume{..} xf  = do
 -- | @virsh vol-delete@
 virshVolDelete :: MonadIO m => Volume -> m ()
 virshVolDelete Volume{..}   =
-    sh $ procs "virsh"
+    sh $ virsh
             [ "vol-delete"
             , "--pool", showt (fromLast volPool)
             , showt volName
