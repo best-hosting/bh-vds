@@ -21,7 +21,7 @@ import System.FilePath
 -- | Given a prefix return a path to preset config directory and pattern to
 -- match preset config files.
 planConfFilePat :: FilePath -> (FilePath, [FilePattern])
-planConfFilePat p   = (p </> "preset", ["*.yaml"])
+planConfFilePat p   = (p </> "plan", ["*.yaml"])
 
 -- | Given a prefix return a path to os config directory and pattern to match
 -- os config files.
