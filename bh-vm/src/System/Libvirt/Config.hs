@@ -154,7 +154,7 @@ mergeConfigs dn SystemConf{..} d0 =
     in  PState{domain = d', ipMap = sysIpMap}
   where
     addVolNames :: Volume -> Name
-    addVolNames v   = dn +++ volName sysVolume +++ volName v
+    addVolNames v   = volName sysVolume +++ dn +++ volName v
     (+++) :: Name -> Name -> Name
     x +++ y         = maybeSep "-" x y
 
