@@ -1,0 +1,33 @@
+<domain type='kvm'>
+  <name>{{name}}</name>
+  <memory unit='MiB'>{{memory}}</memory>
+  <vcpu placement='static'>{{vcpu}}</vcpu>
+  <os>
+    <type arch='{{arch}}'>hvm</type>
+  </os>
+  <devices>
+    <emulator>/usr/bin/kvm</emulator>
+    <disk type='block' device='disk'>
+      <driver name='qemu' type='raw' cache='none' io='native'/>
+      <source dev='{{path}}'/>
+      <target dev='vda' bus='virtio'/>
+      <boot order='2'/>
+    </disk>
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <target dev='hda' bus='ide'/>
+      <readonly/>
+      <source file='{{cdrom}}'/>
+      <boot order='1'/>
+    </disk>
+    <interface type='bridge'>
+      <source bridge='{{bridge}}'/>
+      <model type='virtio'/>
+      <filterref filter='clean-traffic'>
+        <parameter name='IP' value='{{ip}}'/>
+        <parameter name='CTRL_IP_LEARNING' value='dhcp'/>
+      </filterref>
+    </interface>
+  </devices>
+</domain>
+

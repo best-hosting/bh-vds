@@ -1,0 +1,16 @@
+ipmap:
+  1.1.1.1: []
+  2.2.2.2: []
+  3.3.3.3: []
+volume:
+  pool: test
+  name: sysvol
+  size: 3
+  path: /dev/vds
+domain:
+  bridge: br0
+  vcpu: 1
+  memory: 512
+  volume:
+    name: sysdom
+    size: 5

@@ -1,0 +1,23 @@
+<volume type='file'>
+  <name>test41</name>
+  <key>/home/common/sgf/Documents/bh-vds/bh-vm/test/images/test41</key>
+  <source>
+  </source>
+  <capacity unit='bytes'>6127360</capacity>
+  <allocation unit='bytes'>6127616</allocation>
+  <target>
+    <path>/home/common/sgf/Documents/bh-vds/bh-vm/test/images/test41</path>
+    <format type='raw'/>
+    <permissions>
+      <mode>0600</mode>
+      <owner>1000</owner>
+      <group>1000</group>
+    </permissions>
+    <timestamps>
+      <atime>1504622505.461677643</atime>
+      <mtime>1504622404.745921829</mtime>
+      <ctime>1504622404.745921829</ctime>
+    </timestamps>
+  </target>
+</volume>
+

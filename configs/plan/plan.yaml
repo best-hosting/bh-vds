@@ -1,0 +1,5 @@
+memory: 1024
+volume:
+    name: plandom
+    size: 15
+vcpu: 3

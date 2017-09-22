@@ -1,0 +1,4 @@
+<volume>
+  <name>{{name}}</name>
+  <capacity unit="G">{{size}}</capacity>
+</volume>
