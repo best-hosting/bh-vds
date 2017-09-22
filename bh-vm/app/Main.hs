@@ -84,11 +84,12 @@ main                = join . execParser $ info
     ( helper <*> hsubparser
         ( command "add" $ info
             (runP <$> addOptions <*> pure addVm)
-            (progDesc "Add new libvirt domain.")
+            (progDesc "Define new libvirt domain and create its volumes.")
         )
     )
     (  fullDesc
-    <> header "General program title/description"
-    <> progDesc "What does this thing do?"
+    <> header "Simple `virsh` wrapper."
+    <> progDesc (  "Another interface to virsh with"
+                ++ " support for templates, config plans, etc.")
     )
 
