@@ -63,8 +63,8 @@ addOptions          = Config
             <>  metavar "OS"
             <>  help "Name of OS to use."
             )
-    <*> either error pure (matchConf tmplConfFilePat "dom")
-    <*> either error pure (matchConf tmplConfFilePat "vol")
+    <*> either error pure (matchConf tmplConfFilePat "domain")
+    <*> either error pure (matchConf tmplConfFilePat "volume")
     <*> option (eitherReader (parseName . T.pack))
             (   long "name"
             <>  short 'n'
