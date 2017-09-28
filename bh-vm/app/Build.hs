@@ -1,12 +1,13 @@
 {-# LANGUAGE RecordWildCards        #-}
 
-import Data.List
-import Development.Shake
-import Control.Monad
-import System.FilePath
-import System.Console.GetOpt
+import           Data.List
+import           Development.Shake
+import           Development.Shake.FilePath
+import           Control.Monad
+import           System.Console.GetOpt
+import qualified System.Directory   as D
 
-import Pathes
+import           Pathes
 
 -- | Source directory with configs.
 srcConfDir :: FilePath
@@ -129,8 +130,12 @@ build op@Options{..} args       = do
             \   prefix = \"" ++ sysconfdir op ++ "\"\n"
 
     -- Install config files.
-    sysconfdir op ++ "//*" %> \dst ->
-        copyFile' (replacePrefix (sysconfdir op) srcConfDir dst) dst
+    alternatives $ do
+      -- Certain files i don't want to overwrite once they're installed.
+      installMissing sysConfFilePat
+      -- Others i will overwrite with newer versions.
+      instConfDir ++ "//*" %> \dst ->
+        copyFile' (replacePrefix instConfDir srcConfDir dst) dst
 
     -- Install binary files.
     bindir op ++ "//*" %> \dst -> do
@@ -140,13 +145,21 @@ build op@Options{..} args       = do
         let srcBinDir = takeWhile (/= '\n') stackInstallRoot </> "bin"
         copyFile' (replacePrefix (bindir op) srcBinDir dst) dst
   where
+    instConfDir :: FilePath
+    instConfDir = sysconfdir op
     -- | Find config files and 'need' them.
     needConfigs :: (FilePath -> (FilePath, [FilePattern])) -> Action ()
     needConfigs f   = do
         let (d, ps) = f srcConfDir
         fs <- getDirectoryFiles d ps
-        let rs = map (replacePrefix srcConfDir (sysconfdir op) d </>) fs
+        let rs = map (replacePrefix srcConfDir instConfDir d </>) fs
         need rs
+    installMissing :: (FilePath -> (FilePath, [FilePattern])) -> Rules ()
+    installMissing f = do
+        let (d, ps) = f instConfDir
+        map (normaliseEx (d ++ "/") ++) ps |%> \dst -> do
+          b <- liftIO (D.doesFileExist dst)
+          unless b $ copyFile' (replacePrefix instConfDir srcConfDir dst) dst
 
 main :: IO ()
 main                = shakeArgsWith shakeOptions opts $ \fopts args ->
