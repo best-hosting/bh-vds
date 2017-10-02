@@ -50,19 +50,19 @@ matchConf f t       = let (d, ps) = f prefix in
 -- | Options for @add@ command.
 addOptions :: Parser Config
 addOptions          = Config
-    <$> option (eitherReader (matchConf planConfFilePat))
+    <$> (option (eitherReader (fmap Just . matchConf planConfFilePat))
             (   long "plan"
             <>  short 'p'
             <>  metavar "PLAN"
             <>  help "Name of plan to use."
-            )
+            ) <|> pure Nothing)
     <*> either error pure (matchConf sysConfFilePat "system")
-    <*> option (eitherReader (matchConf osConfFilePat))
+    <*> (option (eitherReader (fmap Just . matchConf osConfFilePat))
             (   long "os"
             <>  short 'o'
             <>  metavar "OS"
             <>  help "Name of OS to use."
-            )
+            ) <|> pure Nothing)
     <*> either error pure (matchConf tmplConfFilePat "domain")
     <*> either error pure (matchConf tmplConfFilePat "volume")
     <*> option (eitherReader (parseName . T.pack))

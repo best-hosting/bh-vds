@@ -99,8 +99,8 @@ loadConfigs         = do
     scf <- using $ managed $
             bracket (readSystemConf sysConfFile)
                     (writeSystemConf sysConfFile <=< buildIPMap')
-    PlanConf{..} <- decodeFileEither' planConfFile
-    OsConf{..}   <- decodeFileEither' osConfFile
+    PlanConf{..} <- maybe (return mempty) decodeFileEither' planConfFile
+    OsConf{..}   <- maybe (return mempty) decodeFileEither' osConfFile
     put (mergeConfigs domName scf (planDomain <> osDomain))
 
 -- | Create libvirt volume in a safe way: if later computation fails, created
@@ -139,7 +139,6 @@ addVm               = do
     acquireIP
     createVolume
     createDomain
-
 
 -- FIXME: Do not assign number, if there is only one 'mempty' volume. Or just
 -- do not assign number to first volume without name.

@@ -86,9 +86,9 @@ defPState           = PState {domain = mempty, ipMap = mempty}
 
 -- | Main readonly config.
 data Config         = Config
-                        { planConfFile  :: F.FilePath
+                        { planConfFile  :: Maybe F.FilePath
                         , sysConfFile   :: F.FilePath
-                        , osConfFile    :: F.FilePath
+                        , osConfFile    :: Maybe F.FilePath
                         , domTmplFile   :: F.FilePath
                         , volTmplFile   :: F.FilePath
                         , domName       :: Name
@@ -98,9 +98,9 @@ data Config         = Config
 -- | Default 'Config'.
 defConfig :: Config
 defConfig           = Config
-                        { planConfFile  = "../plan.yaml"
+                        { planConfFile  = Just "../plan.yaml"
                         , sysConfFile   = "../system.yaml"
-                        , osConfFile    = "../os.yaml"
+                        , osConfFile    = Just "../os.yaml"
                         , domTmplFile   = "../dom.xml"
                         , volTmplFile   = "../vol.xml"
                         , domName       = "test"
@@ -132,11 +132,11 @@ instance ToJSON SystemConf where
 
 -- | Domain settings required by a plan.
 newtype PlanConf  = PlanConf {planDomain :: Domain}
-  deriving (Show, FromJSON, ToJSON)
+  deriving (Show, FromJSON, ToJSON, Monoid)
 
 -- | Domain settings required by used OS.
 newtype OsConf      = OsConf {osDomain :: Domain}
-  deriving (Show, FromJSON, ToJSON)
+  deriving (Show, FromJSON, ToJSON, Monoid)
 
 -- | Merge 'SystemConf' into initial 'Domain' value (probably, the result of
 -- summing 'PlanConf' and 'OsConf').
