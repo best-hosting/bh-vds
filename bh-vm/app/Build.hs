@@ -40,6 +40,7 @@ data Options =
         , _bindir       :: FilePath
         -- | Directory for installing config files.
         , _sysconfdir   :: FilePath
+        -- | Flags passed to @stack@.
         , _flags        :: [String]
         }
   deriving (Show)
@@ -104,20 +105,30 @@ build op@Options{..} args       = do
       then want ["all"]
       else want args
 
+    -- Build all.
     "all"       ~> need ["build"]
 
-    "install"   ~> do
+    -- Install all files.
+    "install"   ~> need ["binaries", "configs"]
+
+    -- Install binaries only.
+    "binaries"  ~> do
         need ["build"]
+        need [bindir op </> "bh-vm"]
+
+    -- Install configs only.
+    "configs"   ~> do
         needConfigs planConfFilePat
         needConfigs osConfFilePat
         needConfigs sysConfFilePat
         needConfigs tmplConfFilePat
-        need [bindir op </> "bh-vm"]
 
+    -- Build bh-vm.
     "build"     ~> do
         need [buildIncludesDir </> "Pathes.hs"]
         cmd "stack build" flags
 
+    -- Clean up build files.
     "clean"     ~> do
         liftIO $ removeFiles buildIncludesDir ["//"]
         cmd "stack clean"
