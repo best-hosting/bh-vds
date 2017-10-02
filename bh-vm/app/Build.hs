@@ -1,7 +1,9 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
+import           Data.Char
 import           Data.List
+import           Data.Maybe
 import           Development.Shake
 import           Development.Shake.FilePath
 import           Development.Shake.Classes
@@ -136,7 +138,7 @@ build op@Options{..} args       = do
 
     -- Build bh-vm.
     "build"     ~> do
-        need [buildIncludesDir </> "Pathes.hs"]
+        need . map (buildIncludesDir </>) $ ["Pathes.hs", "Version.hs"]
         cmd "stack build" flags
 
     -- Clean up build files.
@@ -151,6 +153,13 @@ build op@Options{..} args       = do
             \  where\n\
             \   prefix :: FilePath\n\
             \   prefix = \"" ++ p ++ "\"\n"
+
+    buildIncludesDir </> "Version.hs" %> \dst -> do
+        c <- readFile' "package.yaml"
+        writeFileChanged dst $ "module Build.Version\n\
+            \  where\n\
+            \   version :: String\n\
+            \   version = \"" ++ extractVer c ++ "\"\n"
 
     -- Install config files.
     alternatives $ do
@@ -177,12 +186,20 @@ build op@Options{..} args       = do
         fs <- getDirectoryFiles d ps
         let rs = map (replacePrefix srcConfDir instConfDir d </>) fs
         need rs
+    -- | Install a file only, if it's missed. I.e. do not overwrite existing
+    -- file.
     installMissing :: (FilePath -> (FilePath, [FilePattern])) -> Rules ()
     installMissing f = do
         let (d, ps) = f instConfDir
         map (normaliseEx (d ++ "/") ++) ps |%> \dst -> do
           b <- liftIO (D.doesFileExist dst)
           unless b $ copyFile' (replacePrefix instConfDir srcConfDir dst) dst
+    -- | Search for string starting with @version: @ in a yaml file and try to
+    -- extract version number from it.
+    extractVer :: String -> String
+    extractVer c    = fromMaybe "Unknown version" $ do
+        vs <- find (isPrefixOf "version: ") (lines c)
+        dropWhile isSpace <$> stripPrefix "version: " vs
 
 main :: IO ()
 main                = shakeArgsWith shakeOptions opts $ \fopts args ->
