@@ -151,8 +151,8 @@ build op@Options{..} args       = do
         p <- askInstConfDir (InstConfDir ())
         writeFileChanged dst $ "module Build.Pathes\n\
             \  where\n\
-            \   prefix :: FilePath\n\
-            \   prefix = \"" ++ p ++ "\"\n"
+            \   instConfDir :: FilePath\n\
+            \   instConfDir = \"" ++ p ++ "\"\n"
 
     buildIncludesDir </> "Version.hs" %> \dst -> do
         c <- readFile' "package.yaml"

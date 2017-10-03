@@ -19,12 +19,12 @@ import System.Libvirt.Config
 import System.Libvirt
 
 #if LOCAL
-prefix :: FilePath
-prefix              = ".."
+instConfDir :: FilePath
+instConfDir         = "../configs"
 version :: FilePath
 version             = "Local build"
 #else
-import Build.Pathes (prefix)
+import Build.Pathes (instConfDir)
 import Build.Version (version)
 #endif
 
@@ -42,7 +42,7 @@ import Build.Version (version)
 --  result.
 matchConf :: (FilePath -> (FilePath, [FilePattern]))
              -> String -> Either String F.FilePath
-matchConf f t       = let (d, ps) = f prefix in
+matchConf f t       = let (d, ps) = f instConfDir in
     case foldr go ([], []) ps of
         ([r], _)    -> Right (F.decodeString (d </> r))
         ([] , [w])  -> Right (F.decodeString (d </> w))
@@ -64,11 +64,11 @@ matchConf f t       = let (d, ps) = f prefix in
         )
 
 -- | Use matcher function to find all matching _existing_ config files under
--- 'prefix' directory.
+-- 'instConfDir' directory.
 getMatchedConfs :: (FilePath -> (FilePath, [FilePattern]))
                     -> IO [F.FilePath]
 getMatchedConfs f   = do
-    let (d, _) = f prefix
+    let (d, _) = f instConfDir
     ls <- IO.getDirectoryContents d >>= onlyFiles d
     return (rights . map (matchConf f) $ ls)
   where
