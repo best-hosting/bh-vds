@@ -14,7 +14,17 @@
 
 ### Install.
 
-    ./make.hs --verbose install --prefix /usr/local
+Install everything:
+
+    ./make.hs --verbose --prefix /usr/local install
+
+or configs only:
+
+    ./make.hs --verbose --prefix /usr/local configs
+
+or binaries only:
+
+    ./make.hs --verbose --prefix /usr/local binaries
 
 ### Clean.
 
