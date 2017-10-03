@@ -21,8 +21,11 @@ import System.Libvirt
 #if LOCAL
 prefix :: FilePath
 prefix              = ".."
+version :: FilePath
+version             = "Local build"
 #else
 import Build.Pathes (prefix)
+import Build.Version (version)
 #endif
 
 
@@ -126,9 +129,18 @@ check               = do
       putStrLn $ "\nTrying with config:\n" ++ show c
       runP c loadConfigs
 
+-- | Version option defined similar to 'helper'.
+versionOpt :: Parser (a -> a)
+versionOpt          = abortOption (InfoMsg version) $ mconcat
+                        [ long "version"
+                        , short 'v'
+                        , help "Show program version"
+                        , hidden
+                        ]
+
 main :: IO ()
 main                = join . execParser $ info
-    (helper <*> hsubparser (addCmd <> rescanCmd))
+    (helper <*> versionOpt <*> hsubparser (addCmd <> rescanCmd))
     (  fullDesc
     <> header "Simple `virsh` wrapper."
     <> progDesc (  "Another interface to virsh with"
