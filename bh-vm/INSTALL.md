@@ -10,9 +10,6 @@
 
 ### Build.
 
-Specify correct `--prefix` during _build_ phase, because it will be compiled
-in. Changing prefix later for `install` target _won't work_.
-
     ./make.hs --verbose --prefix /usr/local
 
 ### Install.
