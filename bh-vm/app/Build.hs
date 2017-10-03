@@ -1,13 +1,21 @@
-{-# LANGUAGE RecordWildCards        #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 import           Data.List
 import           Development.Shake
 import           Development.Shake.FilePath
+import           Development.Shake.Classes
 import           Control.Monad
 import           System.Console.GetOpt
 import qualified System.Directory   as D
 
 import           Pathes
+
+
+-- | Type for asking a shake oracle about config installation prefix (thus,
+-- making rules to depend on prefix value).
+newtype InstConfDir = InstConfDir ()
+  deriving (Show,Typeable,Eq,Hashable,Binary,NFData)
 
 -- | Source directory with configs.
 srcConfDir :: FilePath
@@ -105,6 +113,9 @@ build op@Options{..} args       = do
       then want ["all"]
       else want args
 
+    -- | An oracle for making rules depend on 'sysconfdir' value.
+    askInstConfDir <- addOracle $ \(InstConfDir _) -> return instConfDir
+
     -- Build all.
     "all"       ~> need ["build"]
 
@@ -134,11 +145,12 @@ build op@Options{..} args       = do
         cmd "stack clean"
 
     -- Generate module file with used config prefix.
-    buildIncludesDir </> "*.hs" %> \dst ->
+    buildIncludesDir </> "Pathes.hs" %> \dst -> do
+        p <- askInstConfDir (InstConfDir ())
         writeFileChanged dst $ "module Build.Pathes\n\
             \  where\n\
             \   prefix :: FilePath\n\
-            \   prefix = \"" ++ sysconfdir op ++ "\"\n"
+            \   prefix = \"" ++ p ++ "\"\n"
 
     -- Install config files.
     alternatives $ do
