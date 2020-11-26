@@ -119,12 +119,14 @@
           - 'libvirt-daemon'
           - 'libvirt-daemon-system'
           - 'bridge-utils'
+          - 'ebtables'
         state: present
 
     - name: build | Clone bh-vm repository
       git:
         repo: "{{ bhvm_repo }}"
         dest: "{{ bh_vm_dir }}"
+        version: "{{ bhvm_branch }}"
         clone: yes
 
     - name: build | Build
