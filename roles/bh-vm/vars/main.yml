@@ -1,0 +1,22 @@
+---
+# vars file for bh-vm
+
+stack_assets_url: 'https://api.github.com/repos/commercialhaskell/stack/releases/latest'
+# Stack assets will be downloaded locally on the controller.
+stack_assets_json: "{{ playbook_dir + '/stack_assets.json' }}"
+stack_assets: []
+stack_url: ''
+stack_archive: ''
+user_local_bin: "{{ user_local_path + '/bin' }}"
+user_bin: "{{ ansible_user_dir + '/bin' }}"
+
+bh_vm_dir: "{{ user_dist_dir + '/bh-vds' }}"
+
+# Define interfaces config as dictionary, containing all interfaces, except
+# loopback and squashing all aliases into single main interface entry.
+interfaces_conf: >
+  {{ dict( ansible_facts['interfaces']
+            | difference(["lo"])
+            | map("regex_replace", '_[0-9]+$', '') | unique
+            | zip_longest([], fillvalue=[])
+         ) }}

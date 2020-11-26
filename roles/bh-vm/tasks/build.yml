@@ -1,0 +1,136 @@
+---
+
+- block:
+    - name: build | Ensure user local bin exists
+      file:
+        path: "{{ user_local_bin }}"
+        force: no
+        follow: no
+        state: directory
+
+    - name: build | Create ~/bin as symlink to ~/.local/bin
+      file:
+        path: "{{ user_bin }}"
+        follow: yes
+        state: link
+        src:  "{{ user_local_bin }}"
+
+    - name: build | Create user dist dir
+      file:
+        path: "{{ user_dist_dir }}"
+        state: directory
+
+- block:
+    # assets almost always will change due to 'download_count' field.
+    - name: build | Download stack assets list
+      get_url:
+        url:  "{{ stack_assets_url }}"
+        dest: "{{ stack_assets_json }}"
+        force: yes
+      register: stack_assets_download
+      changed_when: false
+      delegate_to: localhost
+
+    - name: build | Load stack assets
+      include_vars:
+        file: "{{ stack_assets_json }}"
+        name: stack_assets
+
+    - name: build | Determine url and archive name
+      set_fact:
+        stack_url: >-
+          {{ item | json_query('browser_download_url') }}
+        stack_archive: >-
+          {{ item_name }}
+        stack_dir: >-
+          {{ user_dist_dir + '/' + item_name | regex_search('.*(?=\.tar\.gz$)') | string }}
+      vars:
+        item_name: >-
+          {{ item | json_query('name') }}
+      when: item | json_query('name') | regex_search('(linux).*(x86_64).*tar\.gz$', ignorecase=True)
+      loop: "{{ stack_assets.assets }}"
+
+    - name:
+      debug:
+        msg: "{{ stack_dir + ', ' + stack_archive + ', ' + stack_url }}"
+
+    - name: build | Download stack
+      get_url:
+        url:    "{{ stack_url }}"
+        dest:   "{{ user_dist_dir + '/' + stack_archive }}"
+        force:  "{{ force_overwrite }}"
+      register: stack_download
+
+    - name: build | Unpack
+      unarchive:
+        src:  "{{ user_dist_dir + '/' + stack_archive }}"
+        dest: "{{ user_dist_dir }}"
+        remote_src: yes
+        creates: >-
+          {{ force_overwrite | ternary(file_does_not_exist, stack_dir + '/stack') }}
+
+    - name: build | Install stack
+      copy:
+        src:  "{{ stack_dir + '/stack' }}"
+        dest: "{{ user_local_bin + '/stack' }}"
+        remote_src: yes
+        force: yes
+        mode: 0755
+
+- block:
+    - name: build | Include common .bashrc
+      blockinfile:
+        path:   "{{ ansible_user_dir + '/.bashrc' }}"
+        backup: yes
+        marker: '# {mark} desktop-config ANSIBLE MANAGED BLOCK'
+        insertafter: EOF
+        block: |-
+
+            # Include common settings.
+            . ~/.bashrc-common
+
+    - name: build | Install common bashrc
+      template:
+        src:    'bashrc'
+        force:  yes
+        backup: yes
+        dest:   "{{ ansible_user_dir + '/.bashrc-common' }}"
+
+
+# FIXME: source modified ~/.bashrc .
+
+- block:
+    - name: build | Install dependencies
+      package:
+        name:
+          - 'git'
+          - 'g++'
+          - 'gcc'
+          - 'libc6-dev'
+          - 'libffi-dev'
+          - 'libgmp-dev'
+          - 'make'
+          - 'xz-utils'
+          - 'zlib1g-dev'
+          - 'git'
+          - 'gnupg'
+          - 'netbase'
+          - 'libvirt-clients'
+          - 'libvirt-daemon'
+          - 'libvirt-daemon-system'
+          - 'bridge-utils'
+        state: present
+
+    - name: build | Clone bh-vm repository
+      git:
+        repo: "{{ bhvm_repo }}"
+        dest: "{{ bh_vm_dir }}"
+        clone: yes
+
+    - name: build | Build
+      command:
+        cmd: './make.hs --prefix /usr/local install'
+        chdir: "{{ bh_vm_dir + '/bh-vm' }}"
+        creates: >-
+          {{ force_overwrite | ternary(file_does_not_exist, '/usr/local/bin/bh-vm') }}
+

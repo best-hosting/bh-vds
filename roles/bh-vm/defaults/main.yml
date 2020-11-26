@@ -1,0 +1,17 @@
+---
+
+bhvm_bridge:
+  bridge_port: 'enp1s0f0'
+  ip: '213.108.252.14/23'
+  gw: '213.108.252.1'
+  ns: '213.108.252.6'
+
+user_opt_dir: "{{ ansible_user_dir + '/opt' }}"
+
+# Directory, where to download and save locally installed programs and files.
+user_dist_dir: "{{ user_opt_dir + '/dist' }}"
+
+# Directory, where to install user's programs.
+user_local_path: "{{ ansible_user_dir + '/.local' }}"
+
+force_overwrite: false

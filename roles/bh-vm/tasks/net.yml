@@ -1,0 +1,58 @@
+---
+
+- block:
+    - name:
+      debug:
+        var: interfaces_conf
+
+    - name: Create interfaces.d directory
+      file:
+        path: '/etc/network/interfaces.d'
+        force: no
+        state: directory
+
+    - name: Source interface config files
+      lineinfile:
+        path: '/etc/network/interfaces'
+        insertbefore: BOF
+        backup: yes
+        line: 'source /etc/network/interfaces.d/*'
+        state: present
+
+
+    - name: Initialize interfaces
+      set_fact:
+        interfaces_conf: >-
+          {{ interfaces_conf | combine({ item : interfaces_conf[item] + item_addr })
+          }}
+      vars:
+        item_old_addrs: >-
+          {{ interfaces_conf[item] }}
+        item_addr: >-
+          {{  [ ansible_facts[item].ipv4.address + '/' + item_prefix ]
+                if ansible_facts[item].ipv4 is defined
+                else []
+          }}
+        item_prefix: >-
+          {{  ( ansible_facts[item].ipv4.network + '/' + ansible_facts[item].ipv4.netmask )
+                  | ipaddr('prefix') | string
+                if ansible_facts[item].ipv4 is defined
+                else []
+          }}
+      loop: "{{ interfaces_conf.keys() }}"
+
+    - name:
+      debug:
+        var: interfaces_conf
+
+    # For now, 'br0' is hardcoded somewhere in bh-vm, so.. hardcode it here
+    # too.
+    - name: Write bridge configuration
+      template:
+        src:  'interfaces'
+        dest: '/etc/network/interfaces.d/br0'
+        backup: yes
+      vars:
+        interface: >-
+          {{ { 'name': 'br0' } | combine(bhvm_bridge) }}
+

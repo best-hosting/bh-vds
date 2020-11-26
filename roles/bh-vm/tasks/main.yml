@@ -1,0 +1,14 @@
+---
+
+- name: Build bh-vm
+  import_tasks: build.yml
+  tags:
+    - bhvm
+    - bhvm_build
+
+- name: Build bh-vm
+  import_tasks: net.yml
+  tags:
+    - bhvm
+    - bhvm_net
+
