@@ -1,0 +1,10 @@
+---
+
+- name: Gather facts
+  hosts: all
+
+- name: bh vm
+  hosts: all
+  gather_facts: no
+  roles:
+    - bh-vm
