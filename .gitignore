@@ -1,2 +1,4 @@
 stack_assets.json
 site.retry
+.*.sw*
+*.tmp
