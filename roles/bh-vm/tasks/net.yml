@@ -39,7 +39,7 @@
                 if ansible_facts[item].ipv4 is defined
                 else []
           }}
-      loop: "{{ interfaces_conf.keys() }}"
+      loop: "{{ interfaces_conf.keys() | list }}"
 
     - name:
       debug:
