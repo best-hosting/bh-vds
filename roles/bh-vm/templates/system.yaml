@@ -1,0 +1,15 @@
+ipmap:
+{%- if bhvm_ips == [] %}
+ {}
+{% else %}
+
+{% for ip in bhvm_ips %}
+  {{ ip }}: []
+{% endfor %}
+
+{% endif %}
+volume:
+  pool: {{ pool.name }}
+  name: vm
+domain:
+  bridge: {{ bridge.name }}

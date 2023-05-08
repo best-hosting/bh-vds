@@ -6,9 +6,20 @@
     - bhvm
     - bhvm_build
 
-- name: Build bh-vm
+- name: Config network
   import_tasks: net.yml
   tags:
     - bhvm
     - bhvm_net
 
+- name: Config storage pool
+  import_tasks: pool.yml
+  tags:
+    - bhvm
+    - bhvm_pool
+
+- name: Config bh-vm
+  import_tasks: config.yml
+  tags:
+    - bhvm
+    - bhvm_conf

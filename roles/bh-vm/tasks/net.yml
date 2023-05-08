@@ -1,6 +1,16 @@
 ---
 
 - block:
+    - name: net | Install dependencies
+      package:
+        name:
+          - 'bridge-utils'
+          - 'python3-lxml'
+          - 'python3-libvirt'
+        state: present
+
+# FIXME: Why do i need all these interfaces_conf stuff at all?
+- block:
     - name:
       debug:
         var: interfaces_conf
@@ -37,7 +47,7 @@
           {{  ( ansible_facts[item].ipv4.network + '/' + ansible_facts[item].ipv4.netmask )
                   | ipaddr('prefix') | string
                 if ansible_facts[item].ipv4 is defined
-                else []
+                else ""
           }}
       loop: "{{ interfaces_conf.keys() | list }}"
 
@@ -45,14 +55,57 @@
       debug:
         var: interfaces_conf
 
-    # For now, 'br0' is hardcoded somewhere in bh-vm, so.. hardcode it here
-    # too.
-    - name: Write bridge configuration
+# FIXME: Loop through existing interfaces and search for a bridge containing
+# default network link. If there is one, use at as vm bridge. If not, create
+# new bridge containing default network link as port.
+- block:
+    - name: net | Define bridge config
+      set_fact:
+        bridge: >-
+          {{ def_bridge | combine(bhvm_bridge) }}
+      vars:
+        def_bridge: >-
+          {{  { 'name' : 'brVm'
+              , 'ip' : ansible_facts["default_ipv4"]["address"] + '/' + prefix
+              , 'gw' : ansible_facts["default_ipv4"]["gateway"]
+              , 'bridge_port' : ansible_facts["default_ipv4"]["interface"]
+              , 'ns' : ansible_facts["dns"]["nameservers"][0] | default(omit)
+              }
+          }}
+        prefix: >-
+          {{  ( ansible_facts["default_ipv4"]["network"]
+                      + '/' + ansible_facts["default_ipv4"]["netmask"]
+              ) | ipaddr('prefix') | string
+          }}
+
+  tags:
+    - bhvm_conf
+
+- block:
+    # FIXME: User still needs to comment out old interface entry manually.
+    - name: net | Write bridge configuration
       template:
         src:  'interfaces'
-        dest: '/etc/network/interfaces.d/br0'
-        backup: yes
-      vars:
-        interface: >-
-          {{ { 'name': 'br0' } | combine(bhvm_bridge) }}
+        dest: "{{ '/etc/network/interfaces.d/' + bridge.name }}"
+        backup: no
+      when: ansible_facts[ansible_facts["default_ipv4"]["interface"]]["type"] != 'bridge'
+
+
+- block:
+    - name: net | Add network to libvirt
+      community.libvirt.virt_net:
+        command: define
+        name: "{{ bridge.name }}"
+        xml: >-
+          {{ lookup("template", "templates/net.xml" ) }}
+
+    - name: net | Enable libvirt network
+      community.libvirt.virt_net:
+        state: active
+        name: "{{ bridge.name }}"
+
+    - name: net | Autostart of libvirt network
+      community.libvirt.virt_net:
+        autostart: yes
+        name: "{{ bridge.name }}"
 

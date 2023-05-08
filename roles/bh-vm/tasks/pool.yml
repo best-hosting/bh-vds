@@ -1,0 +1,58 @@
+---
+
+- block:
+    - name: net | Install dependencies
+      package:
+        name:
+          - 'bridge-utils'
+          - 'python3-lxml'
+          - 'python3-libvirt'
+        state: present
+
+- block:
+    - name: pool | Query VG size in bytes
+      command: /usr/sbin/vgs --reportformat json --nosuffix --units b --noheadings -o vg_size
+      changed_when: false
+      register:
+        vgs_out
+
+    - name: pool | Define pool config
+      set_fact:
+        pool: >-
+          {{ def_pool | combine(bhvm_pool) }}
+      vars:
+        def_pool: >-
+          {{  { 'name': ansible_facts["lvm"]["vgs"].keys() | first
+              , 'vg'  : ansible_facts["lvm"]["vgs"].keys() | first
+              , 'pvs' : ansible_facts["lvm"]["pvs"].keys() | list
+              , 'size': vgs.report[0].vg | map(attribute="vg_size") | map('int') | sum
+              }
+          }}
+        vgs: >-
+          {{ vgs_out.stdout | from_json }}
+
+    - name: pool | Show pool config
+      debug:
+        var: pool
+
+  tags:
+    - bhvm_conf
+
+- block:
+    - name: pool | Add pool to libvirt
+      community.libvirt.virt_pool:
+        command: define
+        name: "{{ pool.name }}"
+        xml: >-
+          {{ lookup("template", "templates/pool.xml" ) }}
+
+    - name: pool | Enable pool in libvirt
+      community.libvirt.virt_pool:
+        state: active
+        name: "{{ pool.name }}"
+
+    - name: pool | Autostart pool in libvirt
+      community.libvirt.virt_pool:
+        autostart: yes
+        name: "{{ pool.name }}"
+
