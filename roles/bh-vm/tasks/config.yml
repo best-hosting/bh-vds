@@ -1,7 +1,10 @@
 ---
 
-- name: config | Fix bh-vm config
-  template:
-    src: "system.yaml"
-    dest: "/usr/local/etc/bh-vm/system.yaml"
-    backup: yes
+- block:
+    - name: config | Fix bh-vm config
+      template:
+        src: "system.yaml"
+        dest: "/usr/local/etc/bh-vm/system.yaml"
+        backup: yes
+        force: no
+
