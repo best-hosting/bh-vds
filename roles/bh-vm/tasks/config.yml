@@ -8,3 +8,32 @@
         backup: yes
         force: no
 
+- block:
+    - name: config | Set libvirt shutdown timeout
+      lineinfile:
+        dest: "/etc/default/libvirt-guests"
+        backup: yes
+        line: 'SHUTDOWN_TIMEOUT=180'
+        regexp: "(^#+|^)SHUTDOWN_TIMEOUT="
+        state: present
+      notify:
+        - restart libvirtd
+
+    - name: config | Set libvirt parallel shutdown
+      lineinfile:
+        dest: "/etc/default/libvirt-guests"
+        backup: yes
+        line: 'PARALLEL_SHUTDOWN=5'
+        regexp: "(^#+|^)PARALLEL_SHUTDOWN="
+        state: present
+      notify:
+        - restart libvirtd
+
+
+- block:
+  - name: config | Enable nested virtualization
+    copy:
+      src: "kvm_intel.conf"
+      dest: "/etc/modprobe.d/kvm_intel.conf"
+    notify: update initramfs
+    when: nested_kvm

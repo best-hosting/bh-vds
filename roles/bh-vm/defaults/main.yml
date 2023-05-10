@@ -1,5 +1,7 @@
 ---
 
+nested_kvm: false
+
 #bhvm_repo: 'https://github.com/best-hosting/bh-vds.git'
 bhvm_repo: 'bh@dev.best-hosting.ru:bh-vds.git'
 bhvm_branch: 'bh-dev'

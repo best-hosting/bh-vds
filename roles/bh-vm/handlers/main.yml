@@ -1,2 +1,7 @@
 ---
 # handlers file for bh-vm
+- name: restart libvirtd
+  service: name=libvirtd state=restarted
+
+- name: update initramfs
+  command: update-initramfs -k all -u
