@@ -13,6 +13,7 @@
     - name: pool | Query VG size in bytes
       command: /usr/sbin/vgs --reportformat json --nosuffix --units b --noheadings -o vg_size
       changed_when: false
+      check_mode: false
       register:
         vgs_out
 
